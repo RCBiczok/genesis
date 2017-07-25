@@ -255,6 +255,11 @@ public:
         return "AsynchronousReader";
     }
 
+    void skip( size_t const size )
+    {
+        input_source_->skip(size);
+    }
+
     // -------------------------------------------------------------
     //     Reading
     // -------------------------------------------------------------
@@ -368,6 +373,11 @@ public:
     std::string class_name() const
     {
         return "SynchronousReader";
+    }
+
+    void skip( size_t const size)
+    {
+        input_source_->skip(size);
     }
 
     // -------------------------------------------------------------

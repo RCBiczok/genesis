@@ -185,6 +185,35 @@ public:
         return done_reading;
     }
 
+    /**
+     * @brief skips the buffer ahead by the specified number of bytes
+     * 
+     * @param size number of bytes to skip
+     */
+    void skip( size_t const size )
+    {
+        // first ensure there is no thread currently doing a prefetch
+        if( input_reader_.valid() ) {
+            // data_end_ += 
+            input_reader_.finish_reading();
+        }
+
+        // the "easy" case: if we only skip within the current buffer, we can
+        // simply advance the data position
+        const auto bytes_remaining = data_end_ - data_pos_;
+        if( data_pos_ < BlockLength && size < bytes_remaining ) {
+            data_pos_ += size;
+            return;
+        }
+
+        // the "difficult" case: we want to skip past the buffer.
+        // seek the underlying InputSource
+        input_reader_.skip( size - bytes_remaining - BlockLength );
+
+        // re-initialize the buffers
+        init_buffers_();
+    }
+
     // -------------------------------------------------------------
     //     Internal Members
     // -------------------------------------------------------------
@@ -226,6 +255,30 @@ private:
         assert( data_pos_ < BlockLength );
     }
 
+    void init_buffers_()
+    {
+
+        try {
+            auto input_source = const_cast<BaseInputSource*>(input_reader_.input_source());
+            // Set source name.
+            source_name_ = input_source->source_name();
+
+            // Read up to two blocks.
+            data_pos_ = 0;
+            data_end_ = input_source->read( buffer_, 2 * BlockLength );
+
+            // If there is more data after the two blocks that we just read, start the
+            // reading process (possibly async, if pthreads is available), into the third block.
+            if( data_end_ == 2 * BlockLength ) {
+                input_reader_.start_reading( buffer_ + 2 * BlockLength, BlockLength );
+            }
+
+        } catch( ... ) {
+            delete[] buffer_;
+            throw;
+        }
+    }
+
     /**
      * @brief Init the buffers and the state of this object.
      */
@@ -242,29 +295,14 @@ private:
             return;
         }
 
+        // init the reader
+        input_reader_.init( std::move( input_source ));
+
         // We use three buffer blocks:
         // The first two for the current blocks, and the third for the async reading.
         buffer_ = new char[ 3 * BlockLength ];
-
-        try {
-            // Set source name.
-            source_name_ = input_source->source_name();
-
-            // Read up to two blocks.
-            data_pos_ = 0;
-            data_end_ = input_source->read( buffer_, 2 * BlockLength );
-
-            // If there is more data after the two blocks that we just read, start the
-            // reading process (possibly async, if pthreads is available), into the third block.
-            if( data_end_ == 2 * BlockLength ) {
-                input_reader_.init( std::move( input_source ));
-                input_reader_.start_reading( buffer_ + 2 * BlockLength, BlockLength );
-            }
-
-        } catch( ... ) {
-            delete[] buffer_;
-            throw;
-        }
+        
+        init_buffers_();
     }
 
     // -------------------------------------------------------------

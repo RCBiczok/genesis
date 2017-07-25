@@ -92,6 +92,11 @@ public:
         return source_name_();
     }
 
+    void skip(size_t const size)
+    {
+        skip_( size );
+    }
+
     // -------------------------------------------------------------
     //     Internal Members
     // -------------------------------------------------------------
@@ -99,6 +104,8 @@ public:
 private:
 
     virtual size_t read_( char* buffer, size_t size ) = 0;
+
+    virtual void skip_ ( size_t const size ) = 0;
 
     virtual std::string source_name_() const = 0;
 
@@ -187,8 +194,17 @@ private:
         // Read.
         std::memcpy( buffer, cursor_, size );
         cursor_     += size;
-        rest_size_ -= size;
+        rest_size_  -= size;
         return size;
+    }
+
+    void skip_ ( size_t const size ) override
+    {
+        if ( size > rest_size_ ) {
+            throw std::runtime_error{"Cannot skip past the end of StringInputSource!"};
+        }
+        cursor_     += size;
+        rest_size_  -= size;
     }
 
     /**
@@ -261,6 +277,14 @@ private:
     {
         in_.read( buffer, size );
         return in_.gcount();
+    }
+
+    void skip_ ( size_t const size ) override
+    {
+        in_.seekg(size, in_.cur);
+        if( in_.failbit ) {
+            throw std::runtime_error{"Couldn't skip ahead in the inputstream"};
+        }
     }
 
     /**
@@ -365,7 +389,20 @@ private:
      */
     size_t read_( char* buffer, size_t size ) override
     {
-        return std::fread( buffer, 1, size, file_ );
+        flockfile(file_);
+        size_t r = std::fread( buffer, 1, size, file_ );
+        funlockfile(file_);
+        return r;
+    }
+
+    void skip_ ( size_t const size ) override
+    {
+        flockfile(file_);
+        if( fseek(file_, size, SEEK_CUR) ) {
+            throw std::runtime_error("Couldn't skip ahead in file. fseek failed! skip amount: "
+                                    + std::to_string(size));
+        }
+        funlockfile(file_);
     }
 
     /**

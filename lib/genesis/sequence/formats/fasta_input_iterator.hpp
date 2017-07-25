@@ -175,7 +175,7 @@ public:
     {
         // Check whether the input stream is good (not end-of-stream) and can be read from.
         // If not, we reached its end, so we stop reading in the next iteration.
-        if( input_stream_ == nullptr || ! *input_stream_ ) {
+        if( input_stream_ == nullptr || input_stream_->eof() ) {
             good_ = false;
             return;
         }

@@ -143,7 +143,7 @@ public:
     /**
      * @brief Write raw data, provided as a char array of length `n`, to the stream.
      */
-    void put_raw (char* data, size_t n)
+    void put_raw (const char* data, size_t n)
     {
         outstream.write (data, n);
     }
@@ -161,7 +161,7 @@ public:
      */
     void put_string (const std::string& v)
     {
-        size_t len = v.length();
+        uint64_t len = v.length();
         put_int(len);
         put_raw_string(v);
     }
@@ -296,6 +296,11 @@ public:
     //     Deserialization
     // -------------------------------------------------------------------------
 
+    void skip(size_t const size)
+    {
+        buffer_.skip(size);
+    }
+
     /**
     * @brief Read `n` bytes from the stream and store them in the buffer.
     *
@@ -348,7 +353,7 @@ public:
      */
     std::string get_string ()
     {
-        size_t len = get_int<size_t>();
+        size_t len = get_int<uint64_t>();
         return get_raw_string(len);
     }
 
