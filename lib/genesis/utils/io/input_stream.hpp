@@ -256,6 +256,7 @@ public:
         }
 
         // Set the end of the line to \0, so that downstream parses can work with it.
+        size_t line_end_chars = 1;
         if( buffer_[ line_end ] == '\n' ) {
             buffer_[ line_end ] = '\0';
 
@@ -264,8 +265,8 @@ public:
 
             // Treat stupid Windows \r\n lines breaks.
             if( line_end + 1 < data_end_ && buffer_[ line_end + 1 ] == '\n' ) {
-                ++line_end;
-                buffer_[ line_end ] = '\0';
+                ++line_end_chars;
+                buffer_[ line_end + 1 ] = '\0';
             }
         } else {
 
@@ -277,11 +278,11 @@ public:
 
         // Get pointer to beginning of the line, and length of the line, for returning it.
         char*  ret_ptr = buffer_ + data_pos_;
-        size_t ret_len = line_end - data_pos_;
+        size_t const ret_len = line_end - data_pos_;
 
         // Move to the first char of the next line, so that future calls for reading a line or
         // char start at the right position.
-        data_pos_ = line_end + 1;
+        data_pos_ = line_end + line_end_chars;
         set_current_char_();
 
         // Set counters.
