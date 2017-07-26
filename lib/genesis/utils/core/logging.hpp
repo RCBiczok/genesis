@@ -435,7 +435,7 @@ public:
     // TODO allow different levels to be logged to different streams?!
 
     // methods to handle the output streams to write the log messages to
-    static void log_to_stdout ();
+    static void log_to_stdout (const bool b=true);
     static void log_to_stream (std::ostream& os);
     static void log_to_file   (const std::string& fn);
 

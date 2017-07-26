@@ -35,6 +35,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <algorithm>
 
 #ifdef GENESIS_PTHREADS
 #    include <mutex>
@@ -125,17 +126,24 @@ std::string Logging::level_to_string(const LoggingLevel level)
 /**
  * @brief Add stdout as output stream to which log messages are written.
  */
-void Logging::log_to_stdout ()
+void Logging::log_to_stdout (const bool b)
 {
-    // check whether stdout was already added.
-    for (std::ostream* os : ostreams_) {
-        if (os == &std::cout) {
-            return;
+    if( b ) {
+        // check whether stdout was already added.
+        for (std::ostream* os : ostreams_) {
+            if (os == &std::cout) {
+                return;
+            }
         }
-    }
 
-    // if not, add it as output stream.
-    ostreams_.push_back (&std::cout);
+        // if not, add it as output stream.
+        ostreams_.push_back (&std::cout);
+    } else {
+        ostreams_.erase(
+            std::remove(std::begin(ostreams_), std::end(ostreams_), &std::cout),
+            std::end(ostreams_)
+        );
+    }
 }
 
 /**
