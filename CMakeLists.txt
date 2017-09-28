@@ -249,7 +249,7 @@ IF(GENESIS_USE_OPENMP)
     endif()
 ENDIF()
 
-if(OPENMP_FOUND)
+if(GENESIS_USE_OPENMP AND OPENMP_FOUND)
 
     message( STATUS "Found OpenMP: ${OpenMP_CXX_FLAGS}" )
     message (STATUS "${ColorGreen}Using OpenMP${ColorEnd}")
