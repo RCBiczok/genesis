@@ -1,6 +1,6 @@
 /*
     Genesis - A toolkit for working with phylogenetic data.
-    Copyright (C) 2014-2017 Lucas Czech
+    Copyright (C) 2014-2018 Lucas Czech and HITS gGmbH
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,10 +32,17 @@
 
 #include "genesis/tree/tree.hpp"
 #include "genesis/tree/iterator/levelorder.hpp"
+#include "genesis/tree/function/lca_lookup.hpp"
+
+#include "genesis/utils/containers/matrix/operators.hpp"
 
 #include <algorithm>
 #include <assert.h>
 #include <stdexcept>
+
+#ifdef GENESIS_OPENMP
+#   include <omp.h>
+#endif
 
 namespace genesis {
 namespace tree {
@@ -47,40 +54,67 @@ namespace tree {
 utils::Matrix<double> node_branch_length_distance_matrix(
     Tree const& tree
 ) {
-    utils::Matrix<double> mat (tree.node_count(), tree.node_count(), -1.0);
+    // Init result matrix.
+    auto const node_count = tree.node_count();
+    utils::Matrix<double> result( node_count, node_count, 0.0 );
 
-    // fill every row of the matrix
-    for (auto row_it = tree.begin_nodes(); row_it != tree.end_nodes(); ++row_it) {
-        const auto row_node = row_it->get();
+    // Get distances from every node to the root, in branch length units.
+    auto const dists_to_root = node_branch_length_distance_vector( tree );
 
-        // set the diagonal element of the matrix.
-        mat(row_node->index(), row_node->index()) = 0.0;
+    // Get an LCA lookup for the tree.
+    auto const lca_lookup = LcaLookup( tree );
 
-        // the columns are filled using a levelorder traversal. this makes sure that for every node
-        // we know how to calculate the distance to the current row node.
-        // unfortunately, this prevents us from simply calculating the upper triangle of the matrix
-        // and copying it (distance is symmetric), because we do not really know which nodes are in
-        // which half during a levelorder traversal...
-        for( auto it : levelorder( row_node->link() )) {
-            // skip the diagonal of the matrix.
-            if (it.is_first_iteration()) {
-                continue;
-            }
+    // Parallel specialized code.
+    #ifdef GENESIS_OPENMP
 
-            // make sure we don't have touched the current position, but have calculated
-            // the needed dependency already.
-            assert(mat(row_node->index(), it.node().index()) == -1.0);
-            assert(mat(row_node->index(), it.link().outer().node().index()) > -1.0);
+        // We only need to calculate the upper triangle.
+        // Get the number of indices needed to describe this triangle.
+        size_t const max_k = utils::triangular_size( node_count );
 
-            // the distance to the current row node is: the length of the current branch plus
-            // the distance from the other end of that branch to the row node.
-            mat(row_node->index(), it.node().index())
-                = it.edge().data<DefaultEdgeData>().branch_length
-                + mat(row_node->index(), it.link().outer().node().index());
+        // Calculate distance matrix for every pair of nodes.
+        #pragma omp parallel for
+        for( size_t k = 0; k < max_k; ++k ) {
+
+            // For the given linear index, get the actual position in the Matrix.
+            auto const ij = utils::triangular_indices( k, node_count );
+            auto const i = ij.first;
+            auto const j = ij.second;
+
+            // Make sure we have not touched those entries yet.
+            assert( result(i, j) == 0.0 );
+            assert( result(j, i) == 0.0 );
+
+            // Calculate and store distance.
+            auto const lca = lca_lookup( i, j );
+            auto const dist = dists_to_root[i] + dists_to_root[j] - 2 * dists_to_root[lca];
+            result(i, j) = dist;
+            result(j, i) = dist;
         }
-    }
 
-    return mat;
+    // If no threads are available at all, use serial version.
+    #else
+
+        // Calculate distance matrix for every pair of nodes.
+        for( size_t i = 0; i < node_count; ++i ) {
+
+            // The result is symmetric - we only calculate the upper triangle.
+            for( size_t j = i + 1; j < node_count; ++j ) {
+
+                // Make sure we have not touched those entries yet.
+                assert( result(i, j) == 0.0 );
+                assert( result(j, i) == 0.0 );
+
+                // Calculate and store distance.
+                auto const lca = lca_lookup( i, j );
+                auto const dist = dists_to_root[i] + dists_to_root[j] - 2 * dists_to_root[lca];
+                result(i, j) = dist;
+                result(j, i) = dist;
+            }
+        }
+
+    #endif
+
+    return result;
 }
 
 std::vector<double> node_branch_length_distance_vector(
@@ -131,8 +165,9 @@ utils::Matrix<double> edge_branch_length_distance_matrix(
     // For now, this version should be fast enough.
     auto node_dist_mat = node_branch_length_distance_matrix(tree);
 
-    for (auto row_it = tree.begin_edges(); row_it != tree.end_edges(); ++row_it) {
-        auto const& row_edge = *row_it->get();
+    #pragma omp parallel for
+    for( size_t i = 0; i < tree.edge_count(); ++i ) {
+        auto const& row_edge = tree.edge_at(i);
 
         for (auto col_it = tree.begin_edges(); col_it != tree.end_edges(); ++col_it) {
             auto const& col_edge = *col_it->get();
@@ -174,8 +209,8 @@ utils::Matrix<double> edge_branch_length_distance_matrix(
             // Store in matrix, with halves of the branch lengths.
             mat(row_edge.index(), col_edge.index())
                 = (dist)
-                + ( row_edge.data<DefaultEdgeData>().branch_length / 2 )
-                + ( col_edge.data<DefaultEdgeData>().branch_length / 2 )
+                + ( row_edge.data<DefaultEdgeData>().branch_length / 2.0 )
+                + ( col_edge.data<DefaultEdgeData>().branch_length / 2.0 )
             ;
         }
     }
@@ -199,8 +234,9 @@ std::vector<double> edge_branch_length_distance_vector(
     auto p_node_dist = node_branch_length_distance_vector(tree, &edge->primary_node());
     auto s_node_dist = node_branch_length_distance_vector(tree, &edge->secondary_node());
 
-    for (auto col_it = tree.begin_edges(); col_it != tree.end_edges(); ++col_it) {
-        auto const& col_edge = *col_it->get();
+    #pragma omp parallel for
+    for( size_t i = 0; i < tree.edge_count(); ++i ) {
+        auto const& col_edge = tree.edge_at(i);
 
         if (edge->index() == col_edge.index()) {
             vec[ edge->index() ] = 0.0;
@@ -224,8 +260,8 @@ std::vector<double> edge_branch_length_distance_vector(
         // Store in vector, with halves of the branch lengths.
         vec[ col_edge.index() ]
             = ( dist )
-            + ( edge->data<DefaultEdgeData>().branch_length / 2 )
-            + ( col_edge.data<DefaultEdgeData>().branch_length / 2 )
+            + ( edge->data<DefaultEdgeData>().branch_length / 2.0 )
+            + ( col_edge.data<DefaultEdgeData>().branch_length / 2.0 )
         ;
     }
 
@@ -247,7 +283,7 @@ double deepest_distance(Tree const& tree)
 
         double d = (leaf_dist[idx_p].second
                  + e->data<DefaultEdgeData>().branch_length
-                 + leaf_dist[ idx_s ].second) / 2;
+                 + leaf_dist[ idx_s ].second) / 2.0;
 
         if (d > max) {
             max = d;

@@ -34,6 +34,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fstream>
+#include <functional>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
@@ -51,31 +52,29 @@ namespace utils {
 //     File Access
 // =================================================================================================
 
-/**
- * @brief Return true iff the provided path is a file.
- *
- * Internally, this function simply return the value of file_exists(), as this already does the
- * needed check. Thus, it is an alias.
- */
+bool path_exists( std::string const& path )
+{
+    struct stat info;
+    return ( stat( path.c_str(), &info ) == 0 );
+}
+
 bool is_file( std::string const& path )
 {
     return file_exists( path );
 }
 
-/**
- * @brief Return true iff the file exists.
- */
 bool file_exists( std::string const& filename )
 {
+    // There are plenty of discussions on stackoverflow on how to do this correctly,
+    // e.g., https://stackoverflow.com/a/12774387
+    // None of them worked for me, meaning that they also returned true for directories.
+    // Thus, we use a simple approach that does a basic check, and then also tests for dir...
+
     std::ifstream infile(filename);
-    return infile.good();
+    infile.seekg( 0, std::ios::end) ;
+    return infile.good() && ! is_dir( filename );
 }
 
-/**
- * @brief Return the contents of a file as a string.
- *
- * If the file is not readable, the function throws `std::runtime_error`.
- */
 std::string file_read( std::string const& filename )
 {
     std::ifstream infile(filename);
@@ -94,14 +93,6 @@ std::string file_read( std::string const& filename )
     return str;
 }
 
-/**
- * @brief Write the content of a string to a file.
- *
- * If the file cannot be written to, the function throws an exception. Also, by default, if the file
- * already exists, an exception is thrown.
- * See @link Options::allow_file_overwriting( bool ) Options::allow_file_overwriting()@endlink to
- * change this behaviour.
- */
 void file_write( std::string const& content, std::string const& filename )
 {
     // TODO check if path exists, create if not (make a function for that)
@@ -111,11 +102,6 @@ void file_write( std::string const& content, std::string const& filename )
     ofs << content;
 }
 
-/**
- * @brief Append the content of a string to a file.
- *
- * If the file is not writable, the function throws `std::runtime_error`.
- */
 void file_append( std::string const& content, std::string const& filename )
 {
     // TODO check if path exists, create if not (make a function for that)
@@ -132,20 +118,11 @@ void file_append( std::string const& content, std::string const& filename )
 //     Directory Access
 // =================================================================================================
 
-/**
- * @brief Return true iff the provided path is a directory.
- *
- * Internally, this function simply return the value of dir_exists(), as this already does the
- * needed check. Thus, it is an alias.
- */
 bool is_dir( std::string const& path )
 {
     return dir_exists( path );
 }
 
-/**
- * @brief Return true iff the directory exists.
- */
 bool dir_exists( std::string const& dir )
 {
     struct stat info;
@@ -164,13 +141,6 @@ bool dir_exists( std::string const& dir )
     // }
 }
 
-/**
- * @brief Create a directory.
- *
- * If the directory already exists, nothing happens.
- * If the path exists, but is not a directory, a `std::runtime_error` is thrown.
- * If the creation fails for some other reason, also a `std::runtime_error` is thrown.
- */
 void dir_create( std::string const& path )
 {
     mode_t mode = 0775;
@@ -185,22 +155,20 @@ void dir_create( std::string const& path )
     }
 }
 
-/**
- * @brief Normalize a dir name, i.e., make sure that the given path ends with exaclty one slash.
- */
 std::string dir_normalize_path( std::string const& path )
 {
     return utils::trim_right( path, "/") + "/";
 }
 
-/**
- * @brief Get a list of files and directories in a directory.
- *
- * If the directory is not readable, the function throws `std::runtime_error`.
- */
-std::vector<std::string> dir_list_contents( std::string const& dir )
-{
+std::vector<std::string> dir_list_contents_(
+    std::string const& dir,
+    bool full_path,
+    std::string const& regex,
+    std::function<bool( std::string const& )> condition
+) {
     std::vector<std::string> list;
+    auto const dir_path = dir_normalize_path( dir );
+    std::regex pattern( regex );
 
     DIR*           dp;
     struct dirent* dirp;
@@ -209,119 +177,65 @@ std::vector<std::string> dir_list_contents( std::string const& dir )
         throw std::runtime_error( "Cannot open directory '" + dir + "'." );
     }
     while ((dirp = readdir(dp)) != nullptr) {
-        std::string fn = std::string(dirp->d_name);
+        auto const fn = std::string( dirp->d_name );
+
         if (fn == "." || fn == "..") {
             continue;
         }
-        list.push_back(fn);
+        if( ! regex.empty() && ! regex_match( fn, pattern ) ) {
+            continue;
+        }
+        if( ! condition( dir_path + fn ) ) {
+            continue;
+        }
+
+        if( full_path ) {
+            list.push_back( dir_path + fn );
+        } else {
+            list.push_back( fn );
+        }
     }
     closedir(dp);
+
     //~ std::sort(list.begin(), list.end());
     return list;
 }
 
-/**
- * @brief Get a list of all files and directories in a directory whose name matches a regular expression.
- *
- * If the directory is not readable, the function throws `std::runtime_error`.
- */
-std::vector<std::string> dir_list_contents( std::string const& dir, std::string const& regex )
-{
-    std::vector<std::string> result;
-    auto all_list = dir_list_contents( dir );
-    std::regex pattern( regex );
-
-    for( auto const& elem : all_list ) {
-        if( regex_match( elem, pattern ) ) {
-            result.push_back( elem );
-        }
-    }
-    return result;
+std::vector<std::string> dir_list_contents(
+    std::string const& dir,
+    bool full_path,
+    std::string const& regex
+) {
+    return dir_list_contents_(
+        dir, full_path, regex,
+        []( std::string const& ){ return true; }
+    );
 }
 
-/**
- * @brief Get a list of files in a directory.
- *
- * If the directory is not readable, the function throws `std::runtime_error`.
- */
-std::vector<std::string> dir_list_files( std::string const& dir )
-{
-    std::vector<std::string> result;
-    auto all_list = dir_list_contents( dir );
-    auto dir_path = dir_normalize_path( dir );
-
-    for( auto const& elem : all_list ) {
-        if( is_file( dir_path + elem ) ) {
-            result.push_back( elem );
-        }
-    }
-    return result;
+std::vector<std::string> dir_list_files(
+    std::string const& dir,
+    bool full_path,
+    std::string const& regex
+) {
+    return dir_list_contents_(
+        dir, full_path, regex, is_file
+    );
 }
 
-/**
- * @brief Get a list of all files in a directory whose name matches a regular expression.
- *
- * If the directory is not readable, the function throws `std::runtime_error`.
- */
-std::vector<std::string> dir_list_files( std::string const& dir, std::string const& regex )
-{
-    std::vector<std::string> result;
-    auto all_list = dir_list_contents( dir, regex );
-    auto dir_path = dir_normalize_path( dir );
-
-    for( auto const& elem : all_list ) {
-        if( is_file( dir_path + elem ) ) {
-            result.push_back( elem );
-        }
-    }
-    return result;
-}
-
-/**
- * @brief Get a list of directories in a directory.
- *
- * If the directory is not readable, the function throws `std::runtime_error`.
- */
-std::vector<std::string> dir_list_directories( std::string const& dir )
-{
-    std::vector<std::string> result;
-    auto all_list = dir_list_contents( dir );
-    auto dir_path = dir_normalize_path( dir );
-
-    for( auto const& elem : all_list ) {
-        if( is_dir( dir_path + elem ) ) {
-            result.push_back( elem );
-        }
-    }
-    return result;
-}
-
-/**
- * @brief Get a list of all directories in a directory whose name matches a regular expression.
- *
- * If the directory is not readable, the function throws `std::runtime_error`.
- */
-std::vector<std::string> dir_list_directories( std::string const& dir, std::string const& regex )
-{
-    std::vector<std::string> result;
-    auto all_list = dir_list_contents( dir, regex );
-    auto dir_path = dir_normalize_path( dir );
-
-    for( auto const& elem : all_list ) {
-        if( is_dir( dir_path + elem ) ) {
-            result.push_back( elem );
-        }
-    }
-    return result;
+std::vector<std::string> dir_list_directories(
+    std::string const& dir,
+    bool full_path,
+    std::string const& regex
+) {
+    return dir_list_contents_(
+        dir, full_path, regex, is_dir
+    );
 }
 
 // =================================================================================================
 //     File Information
 // =================================================================================================
 
-/**
- * @brief Return information about a file.
- */
 std::unordered_map<std::string, std::string> file_info( std::string const& filename )
 {
     std::string basename = file_basename(filename);
@@ -335,9 +249,6 @@ std::unordered_map<std::string, std::string> file_info( std::string const& filen
     return res;
 }
 
-/**
- * @brief Return the size of a file.
- */
 size_t file_size( std::string const& filename )
 {
     auto result = filename;
@@ -345,11 +256,6 @@ size_t file_size( std::string const& filename )
     return static_cast<size_t>(in.tellg());
 }
 
-/**
- * @brief Return the path leading to a file.
- *
- * Does not resolve the path. Simply splits at the last directory separator.
- */
 std::string file_path( std::string const& filename )
 {
     auto result = filename;
@@ -361,9 +267,6 @@ std::string file_path( std::string const& filename )
     return result;
 }
 
-/**
- * @brief Remove directory name from file name if present.
- */
 std::string file_basename( std::string const& filename )
 {
     auto result = filename;
@@ -375,12 +278,6 @@ std::string file_basename( std::string const& filename )
     return result;
 }
 
-/**
- * @brief Remove extension if present.
- *
- * Caveat: Does not remove the path. So, if the filename itself does not contain an extension
- * separator ".", but the path does, this will yield an unwanted result. Call file_basename() first.
- */
 std::string file_filename( std::string const& filename )
 {
     auto result = filename;
@@ -392,11 +289,6 @@ std::string file_filename( std::string const& filename )
     return result;
 }
 
-/**
- * @brief Return the extension name of a file.
- *
- * Also see file_filename().
- */
 std::string file_extension( std::string const& filename )
 {
     auto result = filename;
@@ -412,26 +304,6 @@ std::string file_extension( std::string const& filename )
 //     File Names
 // =================================================================================================
 
-/**
- * @brief Check whether a file name is valid.
- *
- * Validating filenames depends on the operating system and file system of the disk. Thus, this is
- * usually not an easy task. This function only checks some basics and is meant to catch the most
- * common problems.
- *
- * The function is meant to be called on the file name itself, without the directory path leading
- * to it. File extensions are allowed. Thus, you might need to call file_basename() before in order
- * to get the file name without the path.
- *
- * Invalid filenames are:
- *
- *   * Those with spaces at the beginning or end, or only consisting of spaces (or empty).
- *   * Those which contain any of the chars `< > : " \ / | ? *`.
- *   * Those which contain any non-printable character, as determined via isprint().
- *
- * This might be too converative for some system, or allow too much for others. It however should
- * return true for filenames that work on most systems.
- */
 bool is_valid_filname( std::string const& filename )
 {
     // No empty filenames.
@@ -460,27 +332,6 @@ bool is_valid_filname( std::string const& filename )
     return true;
 }
 
-/**
- * @brief Remove or replace all invalid parts of a filename.
- *
- * Similar to is_valid_filname(), this function is not meant to be an ultimate solution to valid
- * filenames. See there for details.
- *
- * The function is meant to be called on the file name itself, without the directory path leading
- * to it. File extensions are allowed. Thus, you might need to call file_basename() before in order
- * to get the file name without the path.
- *
- * This function does the following:
- *
- *   * All non-printable characters are removed.
- *   * Spaces at the beginning and end are removed.
- *   * All invalid chars are replaced by an underscore. See is_valid_filname() for a list of those
- *     chars.
- *
- * If after this procedure the filename is empty, an exception is thrown. This is meant to save the
- * user from checking this, or from running into trouble when trying to write to this "file" -
- * because an empty filename will point to a directory name.
- */
 std::string sanitize_filname( std::string const& filename )
 {
     // Prepare result.

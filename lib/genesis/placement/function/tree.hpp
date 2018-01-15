@@ -52,15 +52,17 @@ class Sample;
 // =================================================================================================
 
 /**
- * @brief Produce a @link tree::Tree Tree@endlink where each PqueryPlacement of a Sample is turned
- * into an @link tree::TreeEdge Edge@endlink.
+ * @brief Produce a @link tree::Tree Tree@endlink where the most probable PqueryPlacement of each
+ * Pquery in a Sample is turned into an @link tree::TreeEdge Edge@endlink.
  *
  * The function takes the original @link PlacementTree Tree@endlink of the Sample, and for each
- * PqueryPlacement of the Sample, it attaches a new leaf @link tree::TreeNode Node@endlink to it,
- * positioned according to its @link PqueryPlacement::proximal_length proximal_length@endlink and
- * @link PqueryPlacement::pendant_length pendant_length@endlink. The resulting Tree is useful to
- * get an overview of the distribution of placements. It is mainly intended to view a few placements.
- * For large Samples, it might be a bit cluttered.
+ * Pquery of the Sample, it attaches a new leaf @link tree::TreeNode Node@endlink to it.
+ * The new leaf represents the most probable PqueryPlacement of the Pquery, measured using
+ * the @link PqueryPlacement::like_weight_ratio like_weight_ratio@endlink. The leaf is positioned
+ * according to the @link PqueryPlacement::proximal_length proximal_length@endlink and
+ * @link PqueryPlacement::pendant_length pendant_length@endlink of the PqueryPlacement.
+ * The resulting Tree is useful to get an overview of the distribution of placements. It is mainly
+ * intended to view a few placements. For large Samples, it might be a bit cluttered.
  *
  * Similar trees are produced by
  * [RAxML EPA](http://sco.h-its.org/exelixis/web/software/epa/index.html), where the file is called
@@ -85,7 +87,7 @@ class Sample;
  *
  * The @link PqueryPlacement::pendant_length pendant_length@endlink of the placements is used
  * to calculate the @link tree::DefaultEdgeData::branch_length branch_length@endlink of the new
- * placement edges. This calculation subtracts the shortest `pendant_length` of the placemetns on
+ * placement edges. This calculation subtracts the shortest `pendant_length` of the placements on
  * the edge, so that the base edge is maximally "moved" towards the placement edges. This also
  * implies that at least one of the placement edges has `branch_length == 0.0`.
  * Furthermore, the placements are sorted by their `pendant_length`.
@@ -132,8 +134,8 @@ class Sample;
  * @param name_prefix   Specify a prefix to be added to all new leaf @link tree::TreeNode Nodes@endlink
  *                      (the ones that represent Placements). This is useful if a PqueryName also
  *                      occurs as a @link tree::DefaultNodeData::name name@endlink in the original
- *                      tree. By defalult, empty. In order to get the same naming as labelled trees
- *                      produces by RAxML, use `QUERY___`.
+ *                      tree. By default, empty. In order to get the same naming as labelled trees
+ *                      as produced by RAxML, use `QUERY___`.
  *
  * @return A @link tree::DefaultTree DefaultTree@endlink, i.e., a tree with node names and branch
  * lengths.

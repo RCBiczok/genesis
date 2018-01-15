@@ -30,9 +30,12 @@
 
 #include "genesis/utils/formats/svg/gradient.hpp"
 
+#include "genesis/utils/core/algorithm.hpp"
 #include "genesis/utils/formats/svg/document.hpp"
 #include "genesis/utils/text/string.hpp"
-#include "genesis/utils/tools/color/operators.hpp"
+#include "genesis/utils/tools/color/functions.hpp"
+
+#include <algorithm>
 
 namespace genesis {
 namespace utils {
@@ -50,12 +53,6 @@ void SvgGradientStop::validate() const
             std::to_string( offset ) + "."
         );
     }
-    if( stop_opacity < 0.0 || stop_opacity > 1.0 ) {
-        throw std::invalid_argument(
-            "Invalid Svg Gradient Stop stop_opacity. Has to be in range [ 0.0, 1.0 ], but is " +
-            std::to_string( stop_opacity ) + "."
-        );
-    }
 }
 
 void SvgGradientStop::write( std::ostream& out ) const
@@ -64,8 +61,13 @@ void SvgGradientStop::write( std::ostream& out ) const
     out << "<stop";
     out << svg_attribute( "offset",       100 * offset, "%" );
     out << svg_attribute( "stop-color",   color_to_hex( stop_color ) );
-    out << svg_attribute( "stop-opacity", stop_opacity );
+    out << svg_attribute( "stop-opacity", stop_color.a() );
     out << " />\n";
+}
+
+bool SvgGradientStop::operator< ( self_type const& rhs ) const
+{
+    return offset < rhs.offset;
 }
 
 // =================================================================================================
@@ -74,6 +76,7 @@ void SvgGradientStop::write( std::ostream& out ) const
 
 void SvgGradientLinear::validate() const
 {
+    // Check fixpoints.
     if(
         point_1.x < 0.0 || point_1.x > 1.0 || point_1.y < 0.0 || point_1.y > 1.0 ||
         point_2.x < 0.0 || point_2.x > 1.0 || point_2.y < 0.0 || point_2.y > 1.0
@@ -81,6 +84,36 @@ void SvgGradientLinear::validate() const
         throw std::invalid_argument(
             "Invalid Svg Linar Gradient point. All coordinates of the points need to be in "
             "range [ 0.0, 1.0 ]."
+        );
+    }
+
+    // Check range sanity.
+    if( stops.size() < 2 ) {
+        throw std::invalid_argument(
+            "Svg Linar Gradient range needs to contain at least two colors."
+        );
+    }
+    if( stops.begin()->offset != 0.0 ) {
+        throw std::invalid_argument(
+            "Svg Linar Gradient range needs to start with key value 0.0."
+        );
+    }
+    if( stops.rbegin()->offset != 1.0 ) {
+        throw std::invalid_argument(
+            "Svg Linar Gradient range needs to end with key value 1.0."
+        );
+    }
+
+    // Sort order.
+    auto const sorted = std::is_sorted(
+        stops.begin(), stops.end(),
+        []( SvgGradientStop const& lhs, SvgGradientStop const& rhs ){
+            return lhs.offset < rhs.offset;
+        }
+    );
+    if( ! sorted ) {
+        throw std::invalid_argument(
+            "Svg Linar Gradient range needs to be sorted by offset."
         );
     }
 }
@@ -130,29 +163,18 @@ void SvgGradientLinear::write( std::ostream& out, size_t indent ) const
 
 SvgGradientLinear& SvgGradientLinear::set_stops( std::map<double, Color> const& ranges )
 {
-    // Check range sanity.
-    if( ranges.size() < 2 ) {
-        throw std::invalid_argument(
-            "Svg Linar Gradient range needs to contain at least two colors."
-        );
-    }
-    if( ranges.begin()->first != 0.0 ) {
-        throw std::invalid_argument(
-            "Svg Linar Gradient range needs to start with key value 0.0."
-        );
-    }
-    if( ranges.rbegin()->first != 1.0 ) {
-        throw std::invalid_argument(
-            "Svg Linar Gradient range needs to end with key value 1.0."
-        );
-    }
-
     // Set new stops.
     stops.clear();
     for( auto const& stop : ranges ) {
         stops.emplace_back( stop.first, stop.second );
     }
 
+    return *this;
+}
+
+SvgGradientLinear& SvgGradientLinear::add_stop( SvgGradientStop const& stop )
+{
+    insert_sorted( stops, stop );
     return *this;
 }
 

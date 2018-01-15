@@ -1,6 +1,6 @@
 /*
     Genesis - A toolkit for working with phylogenetic data.
-    Copyright (C) 2014-2017 Lucas Czech
+    Copyright (C) 2014-2018 Lucas Czech and HITS gGmbH
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -42,10 +42,9 @@
 #include "genesis/tree/function/functions.hpp"
 #include "genesis/utils/core/fs.hpp"
 #include "genesis/utils/formats/csv/reader.hpp"
+#include "genesis/utils/containers/matrix.hpp"
+#include "genesis/utils/containers/matrix/operators.hpp"
 #include "genesis/utils/math/matrix.hpp"
-#include "genesis/utils/math/matrix/operators.hpp"
-#include "genesis/utils/math/matrix/pca.hpp"
-#include "genesis/utils/math/matrix/statistics.hpp"
 #include "genesis/utils/text/string.hpp"
 
 using namespace genesis;
@@ -107,7 +106,7 @@ TEST( SampleMeasures, EdgePCA )
     // set.add(smp_rhs);
 
     std::string indir = "/home/lucas/Projects/bacterial_vaginosis/03_epa_magny/orig_queries_jplace/";
-    auto files = utils::dir_list_files( indir, ".*\\.jplace" );
+    auto files = utils::dir_list_files( indir, false, ".*\\.jplace" );
 
     // auto imbalance_matrix = utils::Matrix<double>();
 

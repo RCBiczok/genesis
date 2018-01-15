@@ -41,7 +41,7 @@ namespace sequence {
 // =================================================================================================
 
 class Sequence;
-class SequenceCounts;
+class SiteCounts;
 class SequenceSet;
 
 // =================================================================================================
@@ -74,7 +74,7 @@ class SequenceSet;
  * mostly gaps.
  *
  * Furthermore, if two or more characters have the same frequency, the first one is used. That is,
- * the one that appears first in SequenceCounts::characters().
+ * the one that appears first in SiteCounts::characters().
  *
  * For an alternative version of this function that takes those ambiguities into account, see
  * consensus_sequence_with_ambiguities(). Also, for a version of this function that takes a
@@ -82,7 +82,7 @@ class SequenceSet;
  * However, both of them currently only work for nucleic acid codes (`ACGT`).
  */
 std::string consensus_sequence_with_majorities(
-    SequenceCounts const& counts,
+    SiteCounts const&     counts,
     bool                  allow_gaps = true,
     char                  gap_char   = '-'
 );
@@ -91,10 +91,10 @@ std::string consensus_sequence_with_majorities(
  * @brief Calculate the majority rule consensus sequence by using the most frequent character at
  * each site.
  *
- * See @link consensus_sequence_with_majorities( SequenceCounts const&, bool, char )
+ * See @link consensus_sequence_with_majorities( SiteCounts const&, bool, char )
  * consensus_sequence_with_majorities(...)@endlink for details.
  *
- * This function is merely a wrapper that instead of a SequenceCount objects, takes a SequenceSet
+ * This function is merely a wrapper that instead of a SiteCounts objects, takes a SequenceSet
  * object and the set of characters to be used for counting character frequencies in the Sequence%s.
  * That means, only the provided characters are counted and used for the consensus sequence.
  * This is useful in order to get rid of errors and noise in the Sequence%s. For example, if you
@@ -112,10 +112,10 @@ std::string consensus_sequence_with_majorities(
  * @brief Calculate the majority rule consensus sequence by using the most frequent character at
  * each site for nucleic acid codes `ACGT`.
  *
- * See @link consensus_sequence_with_majorities( SequenceCounts const&, bool, char )
+ * See @link consensus_sequence_with_majorities( SiteCounts const&, bool, char )
  * consensus_sequence_with_majorities(...)@endlink for details.
  *
- * This function is merely a wrapper that instead of a SequenceCount objects, takes a SequenceSet
+ * This function is merely a wrapper that instead of a SiteCounts objects, takes a SequenceSet
  * object consisting of Sequence%s with nucleic acid codes `ACGT` and uses '-' for gaps.
  */
 std::string consensus_sequence_with_majorities(
@@ -138,7 +138,7 @@ std::string consensus_sequence_with_majorities(
  *
  * For example, with `similarity_factor == 1.0`, only exact matches are used, that is, if two
  * counts are exactly the same. Let <code>count('A') == 42</code> and <code>count('T') == 42</code>,
- * and both other counts be `0`, this results in the code `W` at that site. If however
+ * and both other counts (`C` and `G`) be `0`, this results in the code `W` at that site. If however
  * <code>count('T') == 41</code>, only `A` is used for the site.
  * Thus, with `similarity_factor == 1.0`, this function behaves very similar to
  * consensus_sequence_with_majorities(), except in cases were two counts are exaclty the same.
@@ -155,9 +155,8 @@ std::string consensus_sequence_with_majorities(
  *
  * The optional parameter `allow_gaps` (default is `true`) behaves similar to its counterpart in
  * consensus_sequence_with_majorities(). If set to `true`, the count of the gap character is also
- * considered. If then the count of no character is within the similarity range of the gap count,
- * the result contains a gap at that site. If however there are codes within the range (i.e., above
- * `similarity_factor * max_count`), those are used instead, even if gaps are more frequent.
+ * considered. As the ambiguity for a gap combined with any other character is still a gap,
+ * sites where gap is the most frequent charater or is within the deviation get a gap as result.
  *
  * If `allow_gaps` is set to `false` instead, gaps are not considered. That means, the ambiguities
  * are calculated as if there were no gaps. So even if a site contains mostly gaps, but only a few
@@ -167,11 +166,11 @@ std::string consensus_sequence_with_majorities(
  * The ambiguity codes are converted using nucleic_acid_ambiguity_code(). See there for more
  * information on the used codes.
  *
- * If the provided SequenceCounts object does not use nucleic acid codes, or if the
+ * If the provided SiteCounts object does not use nucleic acid codes, or if the
  * `similarity_factor` is not within the range `[ 0.0, 1.0 ]`, an exception is thrown.
  */
 std::string consensus_sequence_with_ambiguities(
-    SequenceCounts const& counts,
+    SiteCounts const&     counts,
     double                similarity_factor = 0.9,
     bool                  allow_gaps        = true
 );
@@ -180,9 +179,9 @@ std::string consensus_sequence_with_ambiguities(
  * @brief Calculate a consensus sequence by using the most frequent characters at each site,
  * for nucleic acid codes `ACGT` and their ambiguities.
  *
- * See @link consensus_sequence_with_ambiguities( SequenceCounts const&, double, bool )
+ * See @link consensus_sequence_with_ambiguities( SiteCounts const&, double, bool )
  * consensus_sequence_with_ambiguities(...)@endlink for details.
- * This is merely a wrapper function that takes a SequenceSet instead of a SequenceCounts object.
+ * This is merely a wrapper function that takes a SequenceSet instead of a SiteCounts object.
  */
 std::string consensus_sequence_with_ambiguities(
     SequenceSet const&    sequences,
@@ -207,15 +206,15 @@ std::string consensus_sequence_with_ambiguities(
  * If `use_ambiguities` is set to `true` (default), the sorted frequencies of the characters are
  * added until the threshold is reached, and the ambiguity code for those characters is used.
  * For example, let `frequency_threshold == 0.9`, <code>count('A') == 42</code> and
- * <code>count('T') == 42</code>, and both other counts be 0. Then, neither `A` nor `T` have counts
- * above the threshold, but combined they do, so the result is code `W == AT` at that site.
- * If however `use_ambiguities` is `false`, the mask character `X` is used for sites that are below
- * the threshold.
+ * <code>count('T') == 42</code>, and both other counts (`C` and `G`) be 0.
+ * Then, neither `A` nor `T` have counts above the threshold, but combined they do, so the result is
+ * code `W == AT` at that site. If however `use_ambiguities` is `false`, the mask character `X` is
+ * used for sites that are below the threshold.
  *
  * Furthermore, if `allow_gaps` is set to `true` (default), gaps are counted when determining the
  * threshold and checking whether the frequency is above it. That is, gaps are then treated as just
- * another character at the site. For sites that mostly contain gaps and the gap frequency reaches
- * the threshold, a gap is used as consensus.
+ * another character at the site. For sites where the gap frequency is needed to reach the
+ * threshold, a gap is used as consensus.
  * If `allow_gaps` is `false`, however, gaps are not counted for determining the frequency of the
  * other characters. This is similar to the counterpart in consensus_sequence_with_majorities().
  * Solely sites that are gaps-only result in a gap char for the consensus then.
@@ -243,11 +242,11 @@ std::string consensus_sequence_with_ambiguities(
  * The ambiguity codes are converted using nucleic_acid_ambiguity_code(). See there for more
  * information on the used codes.
  *
- * If the provided SequenceCounts object does not use nucleic acid codes, or if the
+ * If the provided SiteCounts object does not use nucleic acid codes, or if the
  * `frequency_threshold` is not within the range `[ 0.0, 1.0 ]`, an exception is thrown.
  */
 std::string consensus_sequence_with_threshold(
-    SequenceCounts const& counts,
+    SiteCounts const&     counts,
     double                frequency_threshold = 0.6,
     bool                  allow_gaps          = true,
     bool                  use_ambiguities     = true
@@ -257,9 +256,9 @@ std::string consensus_sequence_with_threshold(
  * @brief Calculate a consensus sequence where the character frequency needs to be above a given
  * threshold, for nucleic acid codes `ACGT`.
  *
- * See @link consensus_sequence_with_threshold( SequenceCounts const&, double, bool, bool )
+ * See @link consensus_sequence_with_threshold( SiteCounts const&, double, bool, bool )
  * consensus_sequence_with_ambiguities(...)@endlink for details.
- * This is merely a wrapper function that takes a SequenceSet instead of a SequenceCounts object.
+ * This is merely a wrapper function that takes a SequenceSet instead of a SiteCounts object.
  */
 std::string consensus_sequence_with_threshold(
     SequenceSet const&    sequences,
@@ -267,6 +266,61 @@ std::string consensus_sequence_with_threshold(
     bool                  allow_gaps          = true,
     bool                  use_ambiguities     = true
 );
+
+// ------------------------------------------------------
+//     Cavener
+// ------------------------------------------------------
+
+/**
+ * @brief Calculate a consensus sequence using the method by Cavener
+ * for nucleic acid codes `ACGT` and their ambiguities.
+ *
+ * For every site, the nucleotides are sorted by frequency. Then, the following checks are performed:
+ *
+ *  1. A single nucleotide is used if its frequency is at least 50% and more than twice as high
+ *     as the second most frequent nucleotide.
+ *  2. If two nucleotides occur in at leat 75% of the sequences, and rule 1 does not apply,
+ *     their ambiguity code is used (double-degenerate code).
+ *  3. If none of the above applies, but one of the nucleotides has a count of zero,
+ *     the (triple-degenerate) code of the other three nucleotides is used.
+ *  4. In all other cases, the code 'N' is used.
+ *
+ * The method is meant for finding a consensus sequence in sets of sequences without gaps.
+ * This implementation however also allows gaps, which are just treated as a normal character
+ * if @p allow_gaps is `true` (default). In this case, if any of rules 1-3 applies to a gap
+ * character, the result is simply reduced to a gap. That is, whenever a gap is used to form
+ * a degenerate code according to the rules, the whole code is reduced to a gap.
+ *
+ * If however @p allow_gaps is `false`, gap characters are completely ignored from the counting.
+ *
+ * The method was described in:
+ *
+ * > D. R. Cavener, "Comparison of the consensus sequence flanking translational start sites in
+ * > Drosophila and vertebrates", Nucleic Acids Res., vol. 15, no. 4, 1987.
+ *
+ * The method is also used by the Transfac Project:
+ *
+ * > V. Matys et al., "TRANSFAC: Transcriptional regulation, from patterns to profiles",
+ * > Nucleic Acids Res., vol. 31, no. 1, pp. 374–378, 2003.
+ */
+std::string consensus_sequence_cavener(
+    SiteCounts const&     counts,
+    bool                  allow_gaps        = true
+);
+
+/**
+ * @brief Calculate a consensus sequence using the method by Cavener
+ * for nucleic acid codes `ACGT` and their ambiguities.
+ *
+ * See @link consensus_sequence_cavener( SiteCounts const&, bool )
+ * consensus_sequence_cavener(...)@endlink for details.
+ * This is merely a wrapper function that takes a SequenceSet instead of a SiteCounts object.
+ */
+std::string consensus_sequence_cavener(
+    SequenceSet const&    sequences,
+    bool                  allow_gaps        = true
+);
+
 
 } // namespace sequence
 } // namespace genesis

@@ -1,6 +1,6 @@
 /*
     Genesis - A toolkit for working with phylogenetic data.
-    Copyright (C) 2014-2017 Lucas Czech
+    Copyright (C) 2014-2018 Lucas Czech and HITS gGmbH
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -35,7 +35,7 @@
 #include "genesis/tree/iterator/eulertour.hpp"
 #include "genesis/tree/tree.hpp"
 
-#include "genesis/utils/math/matrix/operators.hpp"
+#include "genesis/utils/containers/matrix/operators.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -85,6 +85,11 @@ size_t inner_node_count( Tree const& tree )
     return tree.node_count() - leaf_node_count( tree );
 }
 
+size_t node_count( Tree const& tree )
+{
+    return tree.node_count();
+}
+
 size_t leaf_edge_count(  Tree const& tree )
 {
     size_t sum = 0;
@@ -105,6 +110,55 @@ size_t inner_edge_count( Tree const& tree )
         }
     }
     return sum;
+}
+
+size_t edge_count( Tree const& tree )
+{
+    return tree.edge_count();
+}
+
+std::vector<size_t> inner_edge_indices( Tree const& tree )
+{
+    std::vector<size_t> result;
+    for( auto const& edge_it : tree.edges() ) {
+        if( edge_it->secondary_node().is_inner() ) {
+            result.push_back( edge_it->index() );
+        }
+    }
+    return result;
+}
+
+std::vector<size_t> leaf_edge_indices( Tree const& tree )
+{
+    std::vector<size_t> result;
+    for( auto const& edge_it : tree.edges() ) {
+        if( edge_it->secondary_node().is_leaf() ) {
+            result.push_back( edge_it->index() );
+        }
+    }
+    return result;
+}
+
+std::vector<size_t> inner_node_indices( Tree const& tree )
+{
+    std::vector<size_t> result;
+    for( auto const& node_it : tree.nodes() ) {
+        if( node_it->is_inner() ) {
+            result.push_back( node_it->index() );
+        }
+    }
+    return result;
+}
+
+std::vector<size_t> leaf_node_indices( Tree const& tree )
+{
+    std::vector<size_t> result;
+    for( auto const& node_it : tree.nodes() ) {
+        if( node_it->is_leaf() ) {
+            result.push_back( node_it->index() );
+        }
+    }
+    return result;
 }
 
 // =================================================================================================
@@ -136,6 +190,55 @@ utils::Matrix<signed char> edge_sides( Tree const& tree )
     }
 
     return result;
+}
+
+utils::Matrix<signed char> node_root_direction_matrix( Tree const& tree )
+{
+    auto mat = utils::Matrix<signed char>( tree.node_count(), tree.node_count(), 0 );
+
+    // Fill every row of the matrix.
+    #pragma omp parallel for
+    for( size_t i = 0; i < tree.node_count(); ++i ) {
+        auto const& row_node     = tree.node_at(i);
+        auto const  row_index    = row_node.index();
+        auto const  primary_link = &row_node.primary_link();
+
+        // Fill root side subtree with 1s.
+        // We do set the value of inner nodes multiple times, but that's no problem.
+        // Also, we need to do an extra check for the root here, in order to set all
+        // subtrees of the root to -1.
+        signed char const value = row_node.is_root() ? -1 : 1;
+        auto current_link = &( primary_link->outer() );
+        while( current_link != primary_link ) {
+            mat( row_index, current_link->node().index() ) = value;
+            current_link = &( current_link->next().outer() );
+        }
+
+        // Fill all non-root side subtrees with -1s.
+        // We explicitly go through all non-root links of the node, in order to be really clear
+        // about our intentions. It would also work to simply follow the link chain until
+        // we reach the primary link again. However, this would also set -1 to our row node,
+        // thus we'd have to reset it, making the algorithm a bit messy.
+        // So, to be clear and clean, we avoid this.
+        auto sub_link = &( primary_link->next() );
+        while( sub_link != primary_link ) {
+
+            // Now, for a given non-root subtree, set everything to -1.
+            current_link = &( sub_link->outer() );
+            while( current_link != sub_link ) {
+                mat( row_index, current_link->node().index() ) = -1;
+                current_link = &( current_link->next().outer() );
+            }
+
+            // Go to next subtree.
+            sub_link = &( sub_link->next() );
+        }
+
+        // Check that the diagonal element is untouched.
+        assert( mat( row_index, row_index ) == 0 );
+    }
+
+    return mat;
 }
 
 // =================================================================================================

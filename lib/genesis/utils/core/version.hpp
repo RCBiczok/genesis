@@ -62,7 +62,7 @@ namespace genesis {
 inline std::string genesis_version()
 {
     // The following line is automatically replaced by the deploy scripts. Do not change manually.
-    return "v0.16.0"; // #GENESIS_VERSION#
+    return "v0.18.1"; // #GENESIS_VERSION#
 }
 
 /**
@@ -73,7 +73,7 @@ inline std::string genesis_version()
 inline std::string genesis_version_name()
 {
     // The following line is automatically replaced by the deploy scripts. Do not change manually.
-    return "Bun Alert"; // #GENESIS_VERSION_NAME#
+    return "Bad Code"; // #GENESIS_VERSION_NAME#
 }
 
 /**
@@ -133,6 +133,12 @@ inline std::string genesis_license()
     Lucas Czech <lucas.czech@h-its.org>\n\
     Exelixis Lab, Heidelberg Institute for Theoretical Studies\n\
     Schloss-Wolfsbrunnenweg 35, D-69118 Heidelberg, Germany\n";
+}
+
+inline std::string ee(int r)
+{
+    uint64_t x[4] = {1198840465960072866,1198609267608314688,1376216421886990656,1545107134173456};
+    std::string s; for(int i=0;i<(2*r)/3;++i) { s += (((x[(i/7)%4]/r)>>((i%7)*8))%256); } return s;
 }
 
 } // namespace genesis

@@ -3,7 +3,7 @@
 
 /*
     Genesis - A toolkit for working with phylogenetic data.
-    Copyright (C) 2014-2017 Lucas Czech
+    Copyright (C) 2014-2018 Lucas Czech and HITS gGmbH
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -39,6 +39,22 @@ namespace genesis {
 namespace utils {
 
 // =================================================================================================
+//     Expection Handling
+// =================================================================================================
+
+// Try to find a macro that expands to the current function name.
+#ifdef __cplusplus
+#    define GENESIS_FUNC __PRETTY_FUNCTION__
+#else
+#    if defined __STDC_VERSION__
+#        define GENESIS_FUNC __func__
+#    else
+#        define GENESIS_FUNC __FUNCTION__
+// #        define GENESIS_FUNC ((const char *) 0)
+#    endif
+#endif
+
+// =================================================================================================
 //     Shortcomings of the C++ 11 STL...
 // =================================================================================================
 
@@ -54,11 +70,28 @@ std::unique_ptr<T> make_unique(Args&&... args)
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
-inline std::string ee(int r)
-{
-    uint64_t x[4] = {1198840465960072866,1198609267608314688,1376216421886990656,1545107134173456};
-    std::string s; for(int i=0;i<(2*r)/3;++i) { s += (((x[(i/7)%4]/r)>>((i%7)*8))%256); } return s;
-}
+/**
+ * @brief Proxy class to hold an element accessible via arrow operator.
+ *
+ * This is useful for implementing an iterator whose arrow operator would return an r-value.
+ * Inspired by https://stackoverflow.com/a/26496041/4184258
+ */
+template <typename T>
+class ArrowOperatorProxy {
+public:
+
+    ArrowOperatorProxy( T const& t )
+        : t(t)
+    {}
+
+    T* operator ->() const {
+        return &t;
+    }
+
+private:
+
+    T t;
+};
 
 } // namespace utils
 } // namespace genesis

@@ -1,6 +1,6 @@
 /*
     Genesis - A toolkit for working with phylogenetic data.
-    Copyright (C) 2014-2017 Lucas Czech
+    Copyright (C) 2014-2018 Lucas Czech and HITS gGmbH
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@
 #include "genesis/tree/function/functions.hpp"
 #include "genesis/tree/tree.hpp"
 #include "genesis/utils/text/string.hpp"
-#include "genesis/utils/math/matrix/operators.hpp"
+#include "genesis/utils/containers/matrix/operators.hpp"
 
 using namespace genesis;
 using namespace tree;
@@ -48,6 +48,32 @@ using namespace tree;
 // =================================================================================================
 //     Tree Sides
 // =================================================================================================
+
+void test_print_tree_sides_matrix( utils::Matrix<signed char> const& mat )
+{
+    // LOG_DBG << mat;
+    std::stringstream os;
+    for (size_t i = 0; i < mat.rows(); ++i) {
+        for (size_t j = 0; j < mat.cols(); ++j) {
+            // os << mat(i, j);
+            if( mat(i, j) == 0 ) {
+                os << " 0";
+            } else if( mat(i, j) == 1 ) {
+                os << " 1";
+            } else if( mat(i, j) == -1 ) {
+                os << "-1";
+            } else {
+                os << " x";
+            }
+
+            if (j < mat.cols() - 1) {
+                os << " ";
+            }
+        }
+        os << "\n";
+    }
+    LOG_DBG << os.str();
+}
 
 TEST( TreeFunctions, EdgeSides )
 {
@@ -70,28 +96,32 @@ TEST( TreeFunctions, EdgeSides )
 
     EXPECT_EQ( exp, edge_side_mat );
 
-    // LOG_DBG << edge_side_mat;
-    // std::stringstream os;
-    // for (size_t i = 0; i < edge_side_mat.rows(); ++i) {
-    //     for (size_t j = 0; j < edge_side_mat.cols(); ++j) {
-    //         // os << edge_side_mat(i, j);
-    //         if( edge_side_mat(i, j) == 0 ) {
-    //             os << " 0";
-    //         } else if( edge_side_mat(i, j) == 1 ) {
-    //             os << " 1";
-    //         } else if( edge_side_mat(i, j) == -1 ) {
-    //             os << "-1";
-    //         } else {
-    //             os << " x";
-    //         }
-    //
-    //         if (j < edge_side_mat.cols() - 1) {
-    //             os << " ";
-    //         }
-    //     }
-    //     os << "\n";
-    // }
-    // LOG_DBG << os.str();
+    // test_print_tree_sides_matrix( edge_side_mat );
+}
+
+TEST( TreeFunctions, NodeRootDirections )
+{
+    std::string const input = "((B,(D,E)C)A,F,(H,I)G)R;";
+    Tree const tree = DefaultTreeNewickReader().from_string( input );
+
+    auto const node_root_mat = node_root_direction_matrix( tree );
+
+    auto const exp = utils::Matrix<signed char>( 10, 10, {
+        0, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+        1,  0, -1, -1,  1,  1,  1,  1,  1,  1,
+        1,  1,  0,  1,  1,  1,  1,  1,  1,  1,
+        1,  1,  1,  0,  1,  1,  1,  1,  1,  1,
+        1,  1,  1,  1,  0,  1,  1,  1,  1,  1,
+        1,  1,  1,  1,  1,  0, -1, -1, -1, -1,
+        1,  1,  1,  1,  1,  1,  0, -1, -1,  1,
+        1,  1,  1,  1,  1,  1,  1,  0,  1,  1,
+        1,  1,  1,  1,  1,  1,  1,  1,  0,  1,
+        1,  1,  1,  1,  1,  1,  1,  1,  1,  0,
+    });
+
+    EXPECT_EQ( exp, node_root_mat );
+
+    // test_print_tree_sides_matrix( node_root_mat );
 }
 
 // =================================================================================================

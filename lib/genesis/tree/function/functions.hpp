@@ -3,7 +3,7 @@
 
 /*
     Genesis - A toolkit for working with phylogenetic data.
-    Copyright (C) 2014-2017 Lucas Czech
+    Copyright (C) 2014-2018 Lucas Czech and HITS gGmbH
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@
  * @ingroup tree
  */
 
-#include "genesis/utils/math/matrix.hpp"
+#include "genesis/utils/containers/matrix.hpp"
 
 #include <cstddef> // size_t
 #include <vector>
@@ -77,6 +77,11 @@ size_t leaf_node_count(  Tree const& tree );
 size_t inner_node_count( Tree const& tree );
 
 /**
+ * @brief Return the number of Nodes of a Tree. Same as Tree::node_count().
+ */
+size_t node_count( Tree const& tree );
+
+/**
 * @brief Return the number of Edges of a Tree that lead to a leaf Node.
 */
 size_t leaf_edge_count(  Tree const& tree );
@@ -85,6 +90,35 @@ size_t leaf_edge_count(  Tree const& tree );
 * @brief Return the number of Edges of a Tree that do not lead to a leaf Node.
 */
 size_t inner_edge_count( Tree const& tree );
+
+/**
+* @brief Return the number of Edges of a Tree. Same as Tree::edge_count().
+*/
+size_t edge_count( Tree const& tree );
+
+/**
+ * @brief Get a list of the @link tree::TreeEdge::index() edge indices@endlink of all inner edges,
+ * that is, all TreeEdge%s that do not lead to a leaf TreeNode.
+ */
+std::vector<size_t> inner_edge_indices( Tree const& tree );
+
+/**
+ * @brief Get a list of the @link tree::TreeEdge::index() edge indices@endlink of all leaf edges,
+ * that is, all TreeEdge%s that lead to a leaf TreeNode.
+ */
+std::vector<size_t> leaf_edge_indices( Tree const& tree );
+
+/**
+ * @brief Get a list of the @link tree::TreeNode::index() node indices@endlink
+ * of all inner TreeNode%s.
+ */
+std::vector<size_t> inner_node_indices( Tree const& tree );
+
+/**
+ * @brief Get a list of the @link tree::TreeNode::index() node indices@endlink
+ * of all leaf TreeNode%s.
+ */
+std::vector<size_t> leaf_node_indices( Tree const& tree );
 
 // =================================================================================================
 //     Tree Sides
@@ -108,6 +142,18 @@ size_t inner_edge_count( Tree const& tree );
  * the root side of the tree.
  */
 utils::Matrix<signed char> edge_sides( Tree const& tree );
+
+/**
+ * @brief Calculate a Matrix that indicates the nodes on the root side of a given node.
+ *
+ * The row and column indices of the Matrix represent TreeNode indices.
+ * Each element of the Matrix indicates whether the column node is in the subtree of the row node
+ * that contains the root (value `1`), or in a subtree that does not contain the root (value `-1`),
+ * while the diagonale contains `0`.
+ */
+utils::Matrix<signed char> node_root_direction_matrix( Tree const& tree );
+
+// TODO the naming convention of the above two functions is really off!
 
 // =================================================================================================
 //     Subtrees

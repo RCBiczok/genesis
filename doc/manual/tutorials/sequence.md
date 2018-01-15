@@ -132,6 +132,8 @@ Genesis offers a couple of different algorithms:
   * @ref genesis::sequence::consensus_sequence_with_ambiguities( SequenceSet const&, double, bool ) "consensus_sequence_with_ambiguities()",
     also for nucleotide sequences (`ACGT`), that uses a `similarity_factor` to calculate consensus with
     ambiguity characters.
+  * @ref genesis::sequence::consensus_sequence_cavener( SequenceSet const&, bool ) "consensus_sequence_cavener()",
+    again for nucleotide sequences (`ACGT`), which uses the method by Cavener, 1987.
   * @ref genesis::sequence::consensus_sequence_with_majorities( SequenceSet const&, std::string const&, bool, char ) "consensus_sequence_with_majorities()",
     for all kinds of site characters, that uses a majority rule to find the consensus at each site.
 
@@ -149,7 +151,7 @@ as well as the single-site functions @ref genesis::sequence::site_entropy() "sit
 and @ref genesis::sequence::site_information() "site_information()".
 
 Instead of a @ref genesis::sequence::SequenceSet "SequenceSet", they take a
-@ref genesis::sequence::SequenceCounts "SequenceCounts" object as input, which is a summarization
+@ref genesis::sequence::SiteCounts "SiteCounts" object as input, which is a summarization
 of the occurence frequency of the sites in a SequenceSet. See there for details.
 
 # Further Functions {#tutorials_sequence_further_functions}

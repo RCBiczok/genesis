@@ -37,7 +37,6 @@
 #include "genesis/utils/core/logging.hpp"
 #include "genesis/utils/text/string.hpp"
 #include "genesis/utils/text/style.hpp"
-#include "genesis/utils/tools/char_lookup.hpp"
 
 #include <algorithm>
 #include <array>
@@ -58,18 +57,31 @@ namespace sequence {
 //     Characteristics
 // =================================================================================================
 
-utils::Bitvector gap_sites( Sequence const& seq, std::string const& gap_chars )
-{
-    auto result = utils::Bitvector( seq.length() );
-
+utils::Bitvector find_sites(
+    Sequence const& seq,
+    std::string const& chars
+) {
     // Init lookup array.
     auto lookup = utils::CharLookup<bool>( false );
-    lookup.set_selection_upper_lower( gap_chars, true );
+    lookup.set_selection_upper_lower( chars, true );
 
+    return find_sites( seq, lookup );
+}
+
+utils::Bitvector find_sites(
+    Sequence const& seq,
+    utils::CharLookup<bool> const& chars
+) {
+    auto result = utils::Bitvector( seq.length(), false );
     for( size_t i = 0; i < seq.length(); ++i ) {
-        result.set( i, lookup[ seq[ i ] ] );
+        result.set( i, chars[ seq[ i ] ] );
     }
     return result;
+}
+
+utils::Bitvector gap_sites( Sequence const& seq, std::string const& gap_chars )
+{
+    return find_sites( seq, gap_chars );
 }
 
 utils::Bitvector gap_sites( SequenceSet const& set, std::string const& gap_chars )
@@ -354,6 +366,38 @@ void merge_duplicate_sequences(
             // We already skipped the discard case, so this here should not happen.
             assert( false );
         }
+    }
+}
+
+// =================================================================================================
+//     Normalization
+// =================================================================================================
+
+void normalize_nucleic_acid_codes( Sequence& sequence, bool accept_degenerated )
+{
+    for( auto& c : sequence.sites() ) {
+        c = normalize_nucleic_acid_code( c, accept_degenerated );
+    }
+}
+
+void normalize_nucleic_acid_codes( SequenceSet& sequence_set, bool accept_degenerated )
+{
+    for( auto& sequence : sequence_set ) {
+        normalize_nucleic_acid_codes( sequence, accept_degenerated );
+    }
+}
+
+void normalize_amino_acid_codes( Sequence& sequence, bool accept_degenerated )
+{
+    for( auto& c : sequence.sites() ) {
+        c = normalize_amino_acid_code( c, accept_degenerated );
+    }
+}
+
+void normalize_amino_acid_codes( SequenceSet& sequence_set, bool accept_degenerated )
+{
+    for( auto& sequence : sequence_set ) {
+        normalize_amino_acid_codes( sequence, accept_degenerated );
     }
 }
 
