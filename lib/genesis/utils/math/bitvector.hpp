@@ -3,7 +3,7 @@
 
 /*
     Genesis - A toolkit for working with phylogenetic data.
-    Copyright (C) 2014-2017 Lucas Czech
+    Copyright (C) 2014-2018 Lucas Czech and HITS gGmbH
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -31,25 +31,13 @@
  * @ingroup utils
  */
 
-#include <iostream>
-#include <stdint.h>
+#include <cassert>
+#include <cstdint>
 #include <string>
 #include <vector>
 
 namespace genesis {
 namespace utils {
-
-// =================================================================================================
-//     Forward Declarations
-// =================================================================================================
-
-class Bitvector;
-
-Bitvector operator & (Bitvector const& lhs, Bitvector const& rhs);
-Bitvector operator | (Bitvector const& lhs, Bitvector const& rhs);
-Bitvector operator ^ (Bitvector const& lhs, Bitvector const& rhs);
-Bitvector operator - (Bitvector const& lhs, Bitvector const& rhs);
-std::ostream& operator << (std::ostream& out, Bitvector const& rhs);
 
 // =================================================================================================
 //     Bitvector
@@ -60,18 +48,15 @@ class Bitvector
 public:
 
     // ---------------------------------------------------------
-    //     Declarations and Class Functions
+    //     Typedefs, Enums, Constants
     // ---------------------------------------------------------
 
     typedef uint64_t    IntType;
     static const size_t IntSize = sizeof(IntType) * 8;
 
-    friend Bitvector operator & (Bitvector const& lhs, Bitvector const& rhs);
-    friend Bitvector operator | (Bitvector const& lhs, Bitvector const& rhs);
-    friend Bitvector operator ^ (Bitvector const& lhs, Bitvector const& rhs);
-    friend Bitvector operator - (Bitvector const& lhs, Bitvector const& rhs);
-
-    friend std::ostream& operator << (std::ostream& out, Bitvector const& rhs);
+    // ---------------------------------------------------------
+    //     Constructor and Rule of Five
+    // ---------------------------------------------------------
 
     /**
      * @brief Default constructor. Creates an empty Bitvector of size 0.
@@ -82,17 +67,19 @@ public:
      * @brief Constructor that takes a size and an optional bool value to initialize the Bitvector,
      * false by default.
      */
-    Bitvector (const size_t size, const bool init = false) : size_(size)
+    Bitvector (const size_t size, const bool initial_value = false)
+        : size_(size)
     {
         // reserve enough bits, and init them.
         data_.resize( (size / IntSize) + (size % IntSize == 0 ? 0 : 1) );
-        reset(init);
+        reset(initial_value);
     }
 
     /**
      * @brief Constructor that takes a size and a list of values (positions) to be set to true.
      */
-    Bitvector (const size_t size, const std::initializer_list<int> list) : Bitvector(size, false)
+    Bitvector (const size_t size, const std::initializer_list<int> list)
+        : Bitvector(size, false)
     {
         for (int e : list) {
             set(e);
@@ -100,26 +87,43 @@ public:
     }
 
     /**
-     * @brief Returns the size (number of total bits) of this Bitvector.
+     * @brief Create a Bitvector by copying the first @p bits of another Bitvector.
+     *
+     * If `bits > other.size()`, all bits are used.
      */
-    inline size_t size() const
+    Bitvector( Bitvector const& other, size_t bits )
     {
-        return size_;
+        if( bits > other.size() ) {
+            bits = other.size();
+        }
+        size_ = bits;
+        auto const ds = (size_ / IntSize) + (size_ % IntSize == 0 ? 0 : 1);
+        assert( ds <= other.data_.size() );
+        data_ = std::vector<IntType>( other.data_.begin(), other.data_.begin() + ds );
+        unset_padding_();
     }
+
+    ~Bitvector() = default;
+
+    Bitvector(Bitvector const&) = default;
+    Bitvector(Bitvector&&)      = default;
+
+    Bitvector& operator= (Bitvector const&) = default;
+    Bitvector& operator= (Bitvector&&)      = default;
 
     // ---------------------------------------------------------
     //     Single Bit Functions
     // ---------------------------------------------------------
 
     /**
-     * @brief Returns the value of a single bit, without boundary check.
+     * @brief Return the value of a single bit, without boundary check.
      */
     inline bool operator [] (size_t index) const {
         return static_cast<bool> (data_[index / IntSize] & bit_mask_[index % IntSize]);
     }
 
     /**
-     * @brief Returns the value of a single bit, with boundary check.
+     * @brief Return the value of a single bit, with boundary check.
      */
     inline bool get (size_t index) const
     {
@@ -130,7 +134,7 @@ public:
     }
 
     /**
-     * @brief Sets the value of a single bit to true, with boundary check.
+     * @brief Set the value of a single bit to true, with boundary check.
      */
     inline void set (size_t index)
     {
@@ -141,7 +145,7 @@ public:
     }
 
     /**
-     * @brief Sets the value of a single bit to false, with boundary check.
+     * @brief Set the value of a single bit to false, with boundary check.
      */
     inline void unset (size_t index)
     {
@@ -152,7 +156,7 @@ public:
     }
 
     /**
-     * @brief Sets the value of a single bit to a given bool value, with boundary check.
+     * @brief Set the value of a single bit to a given bool value, with boundary check.
      */
     inline void set (size_t index, bool value)
     {
@@ -164,7 +168,7 @@ public:
     }
 
     /**
-     * @brief Flips (inverts) the value of a single bit, with boundary check.
+     * @brief Flip (negate) the value of a single bit, with boundary check.
      */
     inline void flip (size_t index)
     {
@@ -184,57 +188,56 @@ public:
     Bitvector  operator ~  () const;
 
     bool operator == (const Bitvector &other) const;
-    bool operator != (const Bitvector &other) const
-    {
-        return !(*this == other);
-    }
-
-    /**
-     * @brief Strict subset.
-     */
-    inline bool operator <  (Bitvector const& rhs) const
-    {
-        return ((*this & rhs) == *this) && (count() < rhs.count());
-    }
-
-    /**
-     * @brief Strict superset.
-     */
-    inline bool operator >  (Bitvector const& rhs) const
-    {
-        return rhs < *this;
-    }
-
-    /**
-     * @brief Subset or equal.
-     */
-    inline bool operator <= (Bitvector const& rhs) const
-    {
-        return (*this == rhs) || (*this < rhs);
-    }
-
-    /**
-     * @brief Superset or equal.
-     */
-    inline bool operator >= (Bitvector const& rhs) const
-    {
-        return (*this == rhs) || (*this > rhs);
-    }
+    bool operator != (const Bitvector &other) const;
 
     // ---------------------------------------------------------
     //     Other Functions
     // ---------------------------------------------------------
 
-           Bitvector symmetric_difference (                      Bitvector const& rhs) const;
-    static Bitvector symmetric_difference (Bitvector const& lhs, Bitvector const& rhs);
+    /**
+     * @brief Return the size (number of bits) of this Bitvector.
+     */
+    inline size_t size() const
+    {
+        return size_;
+    }
 
+    /**
+     * @brief Count the number of set bits in the Bitvector, that is, its Hamming weight.
+     */
     size_t  count() const;
+
+    /**
+     * @brief Return an std::hash value for the Bitvector.
+     */
     size_t  hash()  const;
+
+    /**
+     * @brief Return a hash value of type IntType that is quicker to calculate than hash().
+     *
+     * This can be used for obtaining a simple hash using xor of the words.
+     * The avalanche effect is of course not present, but for many applications, this hash is
+     * good enough and quite useful.
+     */
     IntType x_hash() const;
 
-    void    invert();
-    void    normalize();
-    void    reset(const bool value = false);
+    /**
+     * @brief Flip all bits.
+     */
+    void negate();
+
+    /**
+     * @brief Bring the Bitvector in a normalized form, where the first bit is always zero.
+     *
+     * If the first bit is zero, nothing happens. However, if is is one, the whole Bitvector is flipped
+     * using negate().
+     */
+    void normalize();
+
+    /**
+     * @brief Reset all the bits to false. If provided with parameter `true`, sets all bits to true.
+     */
+    void reset(const bool value = false);
 
     std::string dump() const;
     std::string dump_int(IntType x) const;
@@ -243,9 +246,16 @@ public:
     //     Internal Members
     // ---------------------------------------------------------
 
-protected:
+private:
 
-    void unset_padding();
+    /**
+     * @brief Internal function that sets all bits to zero that are not actively used.
+     *
+     * The data_ buffer always contains a multiple of IntSize many bits, thus there might be surplus
+     * bits at its end for padding. In case we do operations with Bitvectors of different size, these
+     * might be affected, so we need to reset them to zero sometimes.
+     */
+    void unset_padding_();
 
     static const IntType all_0_;
     static const IntType all_1_;
