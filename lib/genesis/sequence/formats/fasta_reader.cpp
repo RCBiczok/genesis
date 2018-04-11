@@ -36,6 +36,7 @@
 #include "genesis/utils/core/std.hpp"
 #include "genesis/utils/io/input_stream.hpp"
 #include "genesis/utils/io/scanner.hpp"
+#include "genesis/utils/text/char.hpp"
 #include "genesis/utils/text/string.hpp"
 
 #include <assert.h>
@@ -146,18 +147,11 @@ bool FastaReader::parse_sequence(
         return false;
     }
 
-    // We will do whole line reading in this parser. Thus, when reporting an error within a line,
-    // the input stream will already be at a different position. We can thus only report the
-    // beginning of the sequence where the error occured, but not the actual position.
-    // If we wanted to do this, we'd need more bookkeeping and awkward helper functions.
-    // Use parse_sequence_pedantic() instead in cases where you need exact error reporting.
-    auto const seq_at = it.line();
-
-    // Scope to ensure that the label and metadata line is only used
+    // Scope to ensure that the label line is only used
     // while we actually are in that line.
     {
 
-    // Get the label and metadata line.
+    // Get the label line.
     auto  line_pair = it.get_line();
     char* line = line_pair.first;
 
@@ -165,51 +159,33 @@ bool FastaReader::parse_sequence(
     if( line == nullptr || *line != '>' ) {
         throw std::runtime_error(
             "Malformed Fasta " + it.source_name()
-            + ": Expecting '>' at beginning of sequence at line " + std::to_string( seq_at ) + "."
+            + ": Expecting '>' at beginning of sequence at line " + std::to_string( it.line() - 1 ) + "."
         );
     }
     assert( line && *line == '>' );
     ++line;
 
     // Parse label.
-    std::string label = utils::read_while( line, isgraph );
+    std::string label = utils::read_while( line, isprint );
     if( label == "" ) {
         throw std::runtime_error(
             "Malformed Fasta " + it.source_name()
-            + ": Expecting label after '>' in sequence at line " + std::to_string( seq_at ) + "."
+            + ": Expecting label after '>' in sequence at line " + std::to_string( it.line() - 1 ) + "."
         );
     }
     sequence.label( label );
-
-    // Check for unexpected end of stream.
-    if( *line != '\0' && *line != ' ' ) {
-        throw std::runtime_error(
-            "Malformed Fasta " + it.source_name()
-            + ": Expecting a sequence after the label line in sequence at line "
-            + std::to_string( seq_at ) + "."
-        );
-    }
-    assert( *line == '\0' || *line == ' ' );
-
-    // Parse metadata.
-    std::string metadata;
-    if( *line == ' ' ) {
-        ++line;
-        metadata = utils::read_while( line, isprint );
-    }
-    sequence.metadata( metadata );
 
     // Check for unexpected end of file.
     if( *line != '\0' ) {
         throw std::runtime_error(
             "Malformed Fasta " + it.source_name()
             + ": Unexpected characters at the end of the label line in sequence at line "
-            + std::to_string( seq_at ) + "."
+            + std::to_string( it.line() - 1 ) + "."
         );
     }
     assert( *line == '\0' );
 
-    } // End of line scope. We are done with the label and metadata line.
+    } // End of line scope. We are done with the label line.
 
     // Skip comments.
     while( it && *it == ';' ) {
@@ -223,7 +199,7 @@ bool FastaReader::parse_sequence(
         throw std::runtime_error(
             "Malformed Fasta " + it.source_name()
             + ": Expecting a sequence after the label line in sequence at line "
-            + std::to_string( seq_at ) + "."
+            + std::to_string( it.line() - 1 ) + "."
         );
     }
     assert( it );
@@ -239,26 +215,23 @@ bool FastaReader::parse_sequence(
         assert( it.column() == 1 );
 
         auto line_pair = it.get_line();
-        if( line_pair.second == 0 ) {
-            throw std::runtime_error(
-                "Malformed Fasta " + it.source_name()
-                + ": Empty sequence line in sequence at line " + std::to_string( seq_at ) + "."
-            );
+        if( line_pair.second > 0 ) {
+            sites += std::string( line_pair.first, line_pair.second );
         }
-
-        sites += std::string( line_pair.first, line_pair.second );
     }
     assert( !it || *it == '>' );
 
     if( sites.length() == 0 ) {
         throw std::runtime_error(
             "Malformed Fasta " + it.source_name() + ": Empty sequence at line "
-            + std::to_string( seq_at ) + "."
+            + std::to_string( it.line() - 1 ) + "."
         );
     }
 
-    if( to_upper_ ) {
+    if( site_casing_ == SiteCasing::kToUpper ) {
         sequence.sites() = utils::to_upper_ascii( sites );
+    } else if( site_casing_ == SiteCasing::kToLower ) {
+        sequence.sites() = utils::to_lower_ascii( sites );
     } else {
         // We could do a move here instead, but this way, we save some memory, which might be
         // more reasonable for big sequences files than the small gain in speed.
@@ -270,9 +243,9 @@ bool FastaReader::parse_sequence(
         for( auto const& c : sequence.sites() ) {
             if( !lookup_[c] ) {
                 throw std::runtime_error(
-                    "Malformed Fasta " + it.source_name()
-                    + ": Invalid sequence symbols in sequence at line "
-                    + std::to_string( seq_at ) + "."
+                    "Malformed Fasta " + it.source_name() + ": Invalid sequence symbol "
+                    + utils::char_to_hex( c, true )
+                    + " in sequence near line " + std::to_string( it.line() - 1 ) + "."
                 );
             }
         }
@@ -307,7 +280,7 @@ bool FastaReader::parse_sequence_pedantic(
     ++it;
 
     // Parse label.
-    std::string label = utils::read_while( it, isgraph );
+    std::string label = utils::read_while( it, isprint );
     if( label == "" ) {
         throw std::runtime_error(
             "Malformed Fasta " + it.source_name()
@@ -317,21 +290,13 @@ bool FastaReader::parse_sequence_pedantic(
     sequence.label( label );
 
     // Check for unexpected end of stream.
-    if( !it || ( *it != '\n' && *it != ' ' )) {
+    if( !it || ( *it != '\n' )) {
         throw std::runtime_error(
             "Malformed Fasta " + it.source_name()
             + ": Expecting a sequence after the label line at " + it.at() + "."
         );
     }
-    assert( it && (*it == '\n' || *it == ' ') );
-
-    // Parse metadata.
-    std::string metadata;
-    if( *it == ' ' ) {
-        ++it;
-        metadata = utils::read_while( it, isprint );
-    }
-    sequence.metadata( metadata );
+    assert( it && (*it == '\n' ));
 
     // Check for unexpected end of file.
     if( !it || *it != '\n' ) {
@@ -364,11 +329,16 @@ bool FastaReader::parse_sequence_pedantic(
 
         size_t count = 0;
         while( it && *it != '\n' ) {
-            char c = ( to_upper_ ? toupper(*it) : *it );
+            char c = *it;
+            if( site_casing_ == SiteCasing::kToUpper ) {
+                c = toupper(c);
+            } else if( site_casing_ == SiteCasing::kToLower ) {
+                c = tolower(c);
+            }
             if( use_validation_ && ! lookup_[c] ) {
                 throw std::runtime_error(
-                    "Malformed Fasta " + it.source_name()
-                    + ": Invalid sequence symbols at " + it.at() + "."
+                    "Malformed Fasta " + it.source_name() + ": Invalid sequence symbol "
+                    + utils::char_to_hex( c, true ) + " in sequence at " + it.at() + "."
                 );
             }
 
@@ -423,15 +393,15 @@ FastaReader::ParsingMethod FastaReader::parsing_method() const
     return parsing_method_;
 }
 
-FastaReader& FastaReader::to_upper( bool value )
+FastaReader& FastaReader::site_casing( SiteCasing value )
 {
-    to_upper_ = value;
+    site_casing_ = value;
     return *this;
 }
 
-bool FastaReader::to_upper() const
+FastaReader::SiteCasing FastaReader::site_casing() const
 {
-    return to_upper_;
+    return site_casing_;
 }
 
 FastaReader& FastaReader::valid_chars( std::string const& chars )

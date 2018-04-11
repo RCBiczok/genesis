@@ -1,6 +1,6 @@
 /*
     Genesis - A toolkit for working with phylogenetic data.
-    Copyright (C) 2014-2017 Lucas Czech
+    Copyright (C) 2014-2018 Lucas Czech and HITS gGmbH
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -25,17 +25,22 @@
  * @brief
  *
  * @file
- * @ingroup placement
+ * @ingroup test
  */
 
-#include "genesis/placement/pquery/name.hpp"
+#include "src/common.hpp"
 
-namespace genesis {
-namespace placement {
+#include "genesis/utils/core/fs.hpp"
 
-// =================================================================================================
-//     Constructor and Destructor
-// =================================================================================================
+#include <string>
 
-} // namespace placement
-} // namespace genesis
+using namespace genesis::utils;
+
+TEST( FileSystem, DirCreate )
+{
+    // Skip test if no data directory availabe.
+    NEEDS_TEST_DATA;
+
+    std::string dir = environment->data_dir + "/foo/bar/test/long";
+    // dir_create( dir, true );
+}

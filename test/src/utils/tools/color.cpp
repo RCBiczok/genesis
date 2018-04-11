@@ -36,7 +36,10 @@
 #include "genesis/utils/tools/color/qualitative_lists.hpp"
 #include "genesis/utils/tools/color/sequential_lists.hpp"
 #include "genesis/utils/tools/color/names.hpp"
-#include "genesis/utils/tools/color/palette.hpp"
+#include "genesis/utils/tools/color/map.hpp"
+#include "genesis/utils/tools/color/normalization.hpp"
+#include "genesis/utils/tools/color/norm_diverging.hpp"
+#include "genesis/utils/tools/color/norm_boundary.hpp"
 
 #include <stdexcept>
 
@@ -164,17 +167,55 @@ TEST( Color, Names )
 
 TEST( Color, PaletteSpectral )
 {
-    auto pal = ColorPalette( color_list_spectral() );
-    pal.range( -1.0, 0.0, 1.0 );
+    auto map = ColorMap( color_list_spectral() );
+    auto norm = ColorNormalizationDiverging( -1.0, 1.0 );
 
-    compare_color( color_from_bytes( 158,   1,  66 ), pal.diverging_color( -1.0 ) );
-    compare_color( color_from_bytes( 249, 142,  82 ), pal.diverging_color( -0.5 ) );
-    compare_color( color_from_bytes( 253, 174,  97 ), pal.diverging_color( -0.4 ) );
-    compare_color( color_from_bytes( 255, 255, 191 ), pal.diverging_color(  0.0 ) );
-    compare_color( color_from_bytes( 171, 221, 164 ), pal.diverging_color(  0.4 ) );
-    compare_color( color_from_bytes( 137, 208, 165 ), pal.diverging_color(  0.5 ) );
-    compare_color( color_from_bytes(  94,  79, 162 ), pal.diverging_color(  1.0 ) );
+    compare_color( color_from_bytes( 158,   1,  66 ), map( norm, -1.0 ) );
+    compare_color( color_from_bytes( 249, 142,  82 ), map( norm, -0.5 ) );
+    compare_color( color_from_bytes( 253, 174,  97 ), map( norm, -0.4 ) );
+    compare_color( color_from_bytes( 255, 255, 191 ), map( norm,  0.0 ) );
+    compare_color( color_from_bytes( 171, 221, 164 ), map( norm,  0.4 ) );
+    compare_color( color_from_bytes( 137, 208, 165 ), map( norm,  0.5 ) );
+    compare_color( color_from_bytes(  94,  79, 162 ), map( norm,  1.0 ) );
 
     // EXPECT_THROW( pal( -2.0 ), std::invalid_argument );
     // EXPECT_THROW( pal(  2.0 ), std::invalid_argument );
+}
+
+// TEST( Color, Map )
+// {
+//     auto const c = apply_color_map( color_list_spectral(), 0.5 );
+// }
+
+TEST( Color, NormBoundary )
+{
+    auto norm = ColorNormalizationBoundary( 3.0, 8.0, 5 );
+    auto const bvec = std::vector<double>({ 3.0, 4.0, 5.0, 6.0, 7.0, 8.0 });
+    EXPECT_EQ( bvec, norm.boundaries() );
+
+    EXPECT_EQ( -1, norm.interval( 0.0 ) );
+    EXPECT_EQ( -1, norm.interval( 2.9 ) );
+    EXPECT_EQ(  0, norm.interval( 3.0 ) );
+    EXPECT_EQ(  0, norm.interval( 3.1 ) );
+    EXPECT_EQ(  0, norm.interval( 3.9 ) );
+    EXPECT_EQ(  1, norm.interval( 4.0 ) );
+    EXPECT_EQ(  1, norm.interval( 4.1 ) );
+    EXPECT_EQ(  4, norm.interval( 7.0 ) );
+    EXPECT_EQ(  4, norm.interval( 7.1 ) );
+    EXPECT_EQ(  4, norm.interval( 7.9 ) );
+    EXPECT_EQ(  4, norm.interval( 8.0 ) );
+    EXPECT_EQ(  5, norm.interval( 8.5 ) );
+
+    EXPECT_FLOAT_EQ( -1.00, norm( 0.0 ) );
+    EXPECT_FLOAT_EQ( -1.00, norm( 2.9 ) );
+    EXPECT_FLOAT_EQ(  0.00, norm( 3.0 ) );
+    EXPECT_FLOAT_EQ(  0.00, norm( 3.1 ) );
+    EXPECT_FLOAT_EQ(  0.00, norm( 3.9 ) );
+    EXPECT_FLOAT_EQ(  0.25, norm( 4.0 ) );
+    EXPECT_FLOAT_EQ(  0.25, norm( 4.1 ) );
+    EXPECT_FLOAT_EQ(  1.00, norm( 7.0 ) );
+    EXPECT_FLOAT_EQ(  1.00, norm( 7.1 ) );
+    EXPECT_FLOAT_EQ(  1.00, norm( 7.9 ) );
+    EXPECT_FLOAT_EQ(  1.00, norm( 8.0 ) );
+    EXPECT_FLOAT_EQ(  2.00, norm( 8.5 ) );
 }

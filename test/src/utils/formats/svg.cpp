@@ -34,7 +34,10 @@
 #include "genesis/utils/formats/svg/svg.hpp"
 #include "genesis/utils/tools/color/functions.hpp"
 #include "genesis/utils/tools/color/diverging_lists.hpp"
-#include "genesis/utils/tools/color/palette.hpp"
+#include "genesis/utils/tools/color/sequential_lists.hpp"
+#include "genesis/utils/tools/color/map.hpp"
+#include "genesis/utils/tools/color/norm_diverging.hpp"
+#include "genesis/utils/tools/color/norm_boundary.hpp"
 
 using namespace genesis::utils;
 
@@ -81,7 +84,7 @@ TEST( Svg, Basics )
 
     auto text = SvgText( "Hello World! ygp", SvgPoint( 20, 120 ), SvgFont( 15 ) );
     auto bb = text.bounding_box();
-    doc << SvgRect( bb.top_left, bb.size(), SvgStroke( color_from_bytes( 255, 128, 128 ) ), SvgFill( Color(), 0.0 ));
+    doc << SvgRect( bb.top_left, bb.size(), SvgStroke( color_from_bytes( 255, 128, 128 ) ), SvgFill( Color() ));
     doc << text;
 
     // doc << SvgLine( 20, 120, 20 + 12.0*10.0/2.0, 120 );
@@ -120,14 +123,16 @@ TEST( Svg, Gradient )
     // file_write( out.str(), "/home/lucas/test.svg" );
 }
 
-TEST( Svg, Palette )
+TEST( Svg, ColorBar )
 {
     auto doc = SvgDocument();
     doc.overflow = SvgDocument::Overflow::kVisible;
-    auto pal = SvgPalette();
+    auto pal = SvgColorBarSettings();
 
     // Nice palette.
-    pal.palette = ColorPalette( color_list_spectral() );
+    // pal.palette = ColorPalette( color_list_spectral() );
+    auto map = ColorMap( color_list_spectral() );
+    auto norm = ColorNormalizationDiverging();
 
     // Even number of colors.
     // pal.palette = ColorPalette({ {0,0,0}, {1,0,0}, {0,0,1}, {0,0,0} });
@@ -137,14 +142,41 @@ TEST( Svg, Palette )
     // pal.palette = ColorPalette({ {0,0,0}, {1,0,0}, {0,0,1}, {0,1,0}, {0,0,0} });
     // pal.palette = ColorPalette({ {0,0,0}, {0,1,0}, {0,0,0} });
 
-    pal.palette.min(  5.0 );
-    pal.palette.mid( 15.0 );
-    pal.palette.max( 20.0 );
+    norm.min_value(  5.0 );
+    norm.mid_value( 15.0 );
+    norm.max_value( 20.0 );
 
     // pal.direction = SvgPalette::Direction::kLeftToRight;
-    pal.diverging_palette = true;
+    // pal.diverging_palette = true;
 
-    auto const pal_pair = pal.make();
+    auto const pal_pair = make_svg_color_bar( pal, map, norm );
+    doc.defs.push_back( pal_pair.first );
+    doc << pal_pair.second;
+
+    std::ostringstream out;
+    doc.write( out );
+
+    // LOG_DBG << out.str();
+    // file_write( out.str(), "/home/lucas/test.svg" );
+}
+
+TEST( Svg, ColorBarBoundaryNorm )
+{
+    auto doc = SvgDocument();
+    doc.overflow = SvgDocument::Overflow::kVisible;
+
+    // Nice palette.
+    auto map = ColorMap( color_list_viridis() );
+    auto norm = ColorNormalizationBoundary();
+    norm.boundaries({ 3.0, 6.0, 8.0, 10.0 });
+
+    auto pal = SvgColorBarSettings();
+
+    pal.direction = SvgColorBarSettings::Direction::kTopToBottom;
+    // pal.width = 200;
+    // pal.height = 20;
+
+    auto const pal_pair = make_svg_color_bar( pal, map, norm );
     doc.defs.push_back( pal_pair.first );
     doc << pal_pair.second;
 

@@ -1,6 +1,6 @@
 /*
     Genesis - A toolkit for working with phylogenetic data.
-    Copyright (C) 2014-2017 Lucas Czech
+    Copyright (C) 2014-2018 Lucas Czech and HITS gGmbH
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -141,17 +141,31 @@ bool dir_exists( std::string const& dir )
     // }
 }
 
-void dir_create( std::string const& path )
+void dir_create( std::string const& path, bool with_parents )
 {
     mode_t mode = 0775;
     struct stat info;
 
+    // Checks. If it is the current dir, do nothing.
+    auto const path_no_bs = utils::trim_right( path, "/\\");
+    if( path_no_bs.empty() ) {
+        return;
+    }
+
+    // Run recursively.
+    if( with_parents ) {
+        if( ! dir_exists( path_no_bs ) && path_no_bs.size() > 0 ) {
+            dir_create( file_path( path_no_bs ), true );
+        }
+    }
+
+    // Try to make dir.
     if( stat (path.c_str(), &info) != 0 ) {
         if( mkdir( path.c_str(), mode ) != 0 && errno != EEXIST ) {
-            throw std::runtime_error("Cannot create directory: " + path);
+            throw std::runtime_error( "Cannot create directory: " + path );
         }
     } else if( !S_ISDIR(info.st_mode) ) {
-        throw std::runtime_error("Path exists, but is not a directory: " + path);
+        throw std::runtime_error( "Path exists, but is not a directory: " + path );
     }
 }
 
@@ -260,10 +274,11 @@ std::string file_path( std::string const& filename )
 {
     auto result = filename;
     const size_t idx = result.find_last_of("\\/");
-    if (idx != std::string::npos)
-    {
-        result.erase(idx);
+    if( idx == std::string::npos ) {
+        return "";
     }
+
+    result.erase(idx);
     return result;
 }
 

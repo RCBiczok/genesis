@@ -1,5 +1,5 @@
-#ifndef GENESIS_UTILS_FORMATS_SVG_PALETTE_H_
-#define GENESIS_UTILS_FORMATS_SVG_PALETTE_H_
+#ifndef GENESIS_UTILS_FORMATS_SVG_COLOR_BAR_H_
+#define GENESIS_UTILS_FORMATS_SVG_COLOR_BAR_H_
 
 /*
     Genesis - A toolkit for working with phylogenetic data.
@@ -34,9 +34,7 @@
 #include "genesis/utils/formats/svg/gradient.hpp"
 #include "genesis/utils/formats/svg/group.hpp"
 
-#include "genesis/utils/tools/color.hpp"
-#include "genesis/utils/tools/color/palette.hpp"
-
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -45,18 +43,26 @@ namespace genesis {
 namespace utils {
 
 // =================================================================================================
-//     Svg Color Palette
+//     Forward Declarations
 // =================================================================================================
 
-struct SvgPalette
+class ColorMap;
+class ColorNormalization;
+class ColorNormalizationDiverging;
+class ColorNormalizationLinear;
+class ColorNormalizationLogarithmic;
+
+// =================================================================================================
+//     Svg Color Bar
+// =================================================================================================
+
+struct SvgColorBarSettings
 {
 public:
 
     // -------------------------------------------------------------
     //     Typedefs and Enums
     // -------------------------------------------------------------
-
-    using self_type = SvgPalette;
 
     enum class Direction
     {
@@ -67,47 +73,32 @@ public:
     };
 
     // -------------------------------------------------------------
-    //     Constructors and Rule of Five
-    // -------------------------------------------------------------
-
-    SvgPalette() = default;
-    SvgPalette( ColorPalette const& palette, std::string const& id = "" )
-        : palette( palette )
-        , id( id )
-    {}
-
-    ~SvgPalette() = default;
-
-    SvgPalette( SvgPalette const& ) = default;
-    SvgPalette( SvgPalette&& )      = default;
-
-    SvgPalette& operator= ( SvgPalette const& ) = default;
-    SvgPalette& operator= ( SvgPalette&& )      = default;
-
-    // -------------------------------------------------------------
-    //     Drawing Function
-    // -------------------------------------------------------------
-
-    std::pair<SvgGradientLinear, SvgGroup> make() const;
-
-    // -------------------------------------------------------------
     //     Properties
     // -------------------------------------------------------------
 
-    ColorPalette palette;
     Direction direction = Direction::kBottomToTop;
-    std::string id;
 
     double width  = 20;
     double height = 200;
 
     bool with_tickmarks    = true;
     bool with_labels       = true;
-    bool diverging_palette = false;
 
     size_t num_ticks = 5;
 
 };
+
+std::pair<SvgGradientLinear, SvgGroup> make_svg_color_bar(
+    SvgColorBarSettings const& settings,
+    ColorMap const& map,
+    ColorNormalization const& norm,
+    std::string const& id = ""
+);
+
+SvgGroup make_svg_color_list(
+    ColorMap const& map,
+    std::vector<std::string> const& labels
+);
 
 } // namespace utils
 } // namespace genesis

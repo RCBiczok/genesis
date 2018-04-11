@@ -3,7 +3,7 @@
 
 /*
     Genesis - A toolkit for working with phylogenetic data.
-    Copyright (C) 2014-2017 Lucas Czech
+    Copyright (C) 2014-2018 Lucas Czech and HITS gGmbH
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@
  */
 
 #include <cstddef>
+#include <vector>
 
 namespace genesis {
 
@@ -46,6 +47,12 @@ namespace placement {
 
 }
 
+namespace tree {
+
+    class Tree;
+
+}
+
 namespace utils {
 
     template<typename T>
@@ -56,29 +63,93 @@ namespace utils {
 namespace placement {
 
 // =================================================================================================
-//     Node Histogram Distance
+//     Node Distance Histogram
 // =================================================================================================
 
+/**
+ * @brief Simple histogram data structure with equal sized bins.
+ *
+ * This struct is used as a fast and light-weight alternative to the proper utils::Histogram class
+ * for calcualting Node Histogram distances.
+ */
+struct NodeDistanceHistogram
+{
+    double min;
+    double max;
+    std::vector<double> bins;
+};
 
 /**
-* @brief Calculate the Node Histogram Distance of two Sample%s.
-*/
-double node_histogram_distance (
-    Sample const& sample_a,
-    Sample const& sample_b,
-    size_t const  histogram_bins = 25,
-    bool use_negative_axis = true
+ * @brief Collection of NodeDistanceHistogram%s that describes one Sample.
+ */
+struct NodeDistanceHistogramSet
+{
+    std::vector<NodeDistanceHistogram> histograms;
+};
+
+// =================================================================================================
+//     Basic Functions
+// =================================================================================================
+
+/**
+ * @brief Calcualte the NodeDistanceHistogramSet representing a single Sample, given the necessary
+ * matrices of this Sample.
+ *
+ * This is a basic function that is mainly used for speedup in applications. The two matrices
+ * only depend on the tree, but not on the placement data, so for a set of Samples with the same
+ * tree, they only need to be calculated once.
+ */
+NodeDistanceHistogramSet node_distance_histogram_set(
+    Sample const& sample,
+    utils::Matrix<double> const& node_distances,
+    utils::Matrix<signed char> const& node_sides,
+    size_t const  histogram_bins
 );
 
 /**
-* @brief Calculate the
-* @link node_histogram_distance( Sample const&, Sample const&, size_t const, bool ) node_histogram_distance()@endlink
-* for every pair of Sample%s in the SampleSet.
+ * @brief Given the histogram sets that describe two Sample%s, calculate their distance.
+ */
+double node_histogram_distance(
+    NodeDistanceHistogramSet const& lhs,
+    NodeDistanceHistogramSet const& rhs
+);
+
+/**
+ * @brief Given the histogram sets that describe a set of Sample%s, calculate their pairwise
+ * distance matrix.
+ */
+utils::Matrix<double> node_histogram_distance(
+    std::vector<NodeDistanceHistogramSet> const& histogram_sets
+);
+
+// =================================================================================================
+//     High Level Functions
+// =================================================================================================
+
+/**
+* @brief Calculate the Node Histogram Distance of two Sample%s.
+*
+* The necessary matrices of the Samples are calculated, then their NodeDistanceHistogramSet are
+* build, and finally the distance is calcualted. Basically, this is a high level
+* function that simply chains node_distance_histogram_set() and
+* @link node_histogram_distance( NodeDistanceHistogramSet const&, NodeDistanceHistogramSet const& ) node_histogram_distance()@endlink
+* for convenience.
 */
-utils::Matrix<double> node_histogram_distance (
+double node_histogram_distance(
+    Sample const& sample_a,
+    Sample const& sample_b,
+    size_t const  histogram_bins = 25
+);
+
+/**
+* @brief Calculate the Node Histogram Distance of every pair of Sample%s in the SampleSet.
+*
+* This is a high level convenience function that takes a whole SampleSet, calculates
+* the necessary matrices, builds the histograms, and calculates their distances.
+*/
+utils::Matrix<double> node_histogram_distance(
     SampleSet const& sample_set,
-    size_t const     histogram_bins = 25,
-    bool use_negative_axis = true
+    size_t const     histogram_bins = 25
 );
 
 } // namespace placement
