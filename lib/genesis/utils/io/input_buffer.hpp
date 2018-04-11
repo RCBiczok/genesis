@@ -192,12 +192,6 @@ public:
      */
     void skip( size_t const size )
     {
-        // first ensure there is no thread currently doing a prefetch
-        if( input_reader_.valid() ) {
-            // data_end_ += 
-            input_reader_.finish_reading();
-        }
-
         // the "easy" case: if we only skip within the current buffer, we can
         // simply advance the data position
         const auto bytes_remaining = data_end_ - data_pos_;

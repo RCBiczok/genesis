@@ -282,7 +282,7 @@ private:
     void skip_ ( size_t const size ) override
     {
         in_.seekg(size, in_.cur);
-        if( in_.failbit ) {
+        if( in_.fail() ) {
             throw std::runtime_error{"Couldn't skip ahead in the inputstream"};
         }
     }

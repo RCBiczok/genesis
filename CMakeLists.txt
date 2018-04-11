@@ -160,6 +160,10 @@ ENDIF()
 # Do not use this when genesis is used as a dependency. In that case, simply set CMAKE_BUILD_TYPE
 # prior to including the genesis subdirectory.
 if( $ENV{GENESIS_DEBUG} )
+    set( GENESIS_DEBUG 1 )
+endif()
+
+if( GENESIS_DEBUG )
 
     set (CMAKE_BUILD_TYPE DEBUG)
 

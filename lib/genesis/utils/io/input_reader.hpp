@@ -227,7 +227,6 @@ public:
                     if( achieved_size_ == 0 ) {
                         break;
                     }
-
                     cond_read_finished_.notify_one();
                 }
 
@@ -257,6 +256,7 @@ public:
 
     void skip( size_t const size )
     {
+        std::unique_lock< std::mutex > guard( lock_ );
         input_source_->skip(size);
     }
 
